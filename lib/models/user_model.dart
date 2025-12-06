@@ -65,3 +65,25 @@ class Provider {
   // Optional: Add fromJson/toJson methods here if you fetch provider data separately
   // factory Provider.fromJson(Map<String, dynamic> json) { ... }
 }
+
+class Booking {
+  final String id;
+  final String providerName;
+  final String providerImage; // URL or asset path
+  final String serviceCategory;
+  final String status; // 'Pending', 'Accepted', 'Declined'
+  final DateTime date;
+  final String time;
+  final String address;
+
+  Booking({
+    required this.id,
+    required this.providerName,
+    required this.providerImage,
+    required this.serviceCategory,
+    required this.status,
+    required this.date,
+    required this.time,
+    required this.address,
+  });
+}

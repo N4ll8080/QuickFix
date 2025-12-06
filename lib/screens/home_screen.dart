@@ -75,34 +75,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {},
-            child: const Text(
-              'Home',
-              style: TextStyle(
-                color: Colors.black87,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {},
-            child: const Text(
-              'My Bookings',
-              style: TextStyle(color: Colors.black54, fontSize: 15),
-            ),
-          ),
-          TextButton(
-            onPressed: () {},
-            child: const Text(
-              'Profile',
-              style: TextStyle(color: Colors.black54, fontSize: 15),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(

@@ -1,7 +1,8 @@
 // main.dart
 import 'package:flutter/material.dart';
 // Import your screens
-import 'screens/login_screen.dart';
+//import 'screens/login_screen.dart';
+import 'screens/main_screen.dart';
 
 void main() {
   runApp(const QuickFixApp());
@@ -18,7 +19,7 @@ class QuickFixApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFFF5F5F5),
       ),
-      home: const LoginScreen(),
+      home: const MainScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
