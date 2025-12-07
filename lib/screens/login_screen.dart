@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../screens/home_screen.dart';
 import '../screens/register_screen.dart';
+import '../screens/main_screen.dart';
+import 'provider/provider_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,10 +40,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (success && mounted) {
         // Navigate to home screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        if (isServiceSeeker) {
+          // Go to Service Seeker App (MainScreen)
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MainScreen()),
+          );
+        } else {
+          // Go to Provider App (ProviderMainScreen)
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const ProviderMainScreen()),
+          );
+        }
       } else if (mounted) {
         // Show error
         ScaffoldMessenger.of(
