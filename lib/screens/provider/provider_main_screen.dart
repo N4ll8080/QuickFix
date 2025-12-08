@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'provider_dashboard_screen.dart';
-// You can create placeholders for these other screens later
-// import 'provider_requests_screen.dart';
-// import 'provider_profile_screen.dart';
+import 'provider_requests_screen.dart';
+import 'provider_bookings_screen.dart';
+import 'provider_profile_screen.dart';
 
 class ProviderMainScreen extends StatefulWidget {
   const ProviderMainScreen({super.key});
@@ -16,10 +16,10 @@ class _ProviderMainScreenState extends State<ProviderMainScreen> {
 
   // Define the screens for each tab
   final List<Widget> _screens = [
-    const ProviderDashboardScreen(), // The design from your image
-    const Center(child: Text("Incoming Requests Screen")), // Placeholder
-    const Center(child: Text("Booking History Screen")), // Placeholder
-    const Center(child: Text("Profile Settings Screen")), // Placeholder
+    const ProviderDashboardScreen(),
+    const ProviderRequestsScreen(),
+    const ProviderBookingsScreen(),
+    const ProviderProfileScreen(), // Placeholder
   ];
 
   void _onItemTapped(int index) {

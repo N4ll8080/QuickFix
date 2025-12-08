@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:quick_fix/screens/login_screen.dart';
 // Import your screens
 //import 'screens/login_screen.dart';
-import 'screens/main_screen.dart';
 
 void main() {
   runApp(const QuickFixApp());

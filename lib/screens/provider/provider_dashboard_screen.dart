@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+import '../login_screen.dart';
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -10,6 +12,41 @@ class ProviderDashboardScreen extends StatefulWidget {
 
 class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
   bool isAvailable = true; // Toggle state
+
+  // --- LOGOUT FUNCTION ---
+  Future<void> _handleLogout() async {
+    // 1. Optional: Show a confirmation dialog
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // 2. Perform the logout in the service layer
+    await AuthService().logout();
+
+    if (!mounted) return;
+
+    // 3. Navigate back to Login and remove all previous routes (prevent back button)
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (Route<dynamic> route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +70,8 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
-            onPressed: () {
-              // Add logout logic here later
-            },
+            tooltip: 'Logout',
+            onPressed: _handleLogout, // Call the function here,
           ),
         ],
       ),

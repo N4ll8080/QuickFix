@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../screens/bookings/my_bookings_screen.dart';
-// import 'profile/profile_screen.dart'; // Create this later
+import '../screens/profile/service_seeker_profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -18,7 +18,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const HomeScreen(), // Index 0
     const MyBookingsScreen(), // Index 1
-    const Center(child: Text("Profile Screen")), // Index 2 (Placeholder)
+    const ServiceSeekerProfileScreen(), // Index 2 (Placeholder)
   ];
 
   // 3. Handle tab taps
