@@ -284,9 +284,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 ],
               ),
               ElevatedButton(
-                onPressed: () {
-                  // Handle "View Details"
-                },
+                onPressed: () => _showBookingDetails(booking),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0B84FF),
                   shape: RoundedRectangleBorder(
@@ -303,6 +301,249 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showBookingDetails(Booking booking) {
+    // Map status to colors reused across the sheet
+    Color statusColor;
+    Color statusBgColor;
+    switch (booking.status) {
+      case 'Accepted':
+        statusColor = Colors.green;
+        statusBgColor = Colors.green.withOpacity(0.12);
+        break;
+      case 'Pending':
+        statusColor = const Color(0xFFFFC107);
+        statusBgColor = const Color(0xFFFFC107).withOpacity(0.12);
+        break;
+      case 'Declined':
+        statusColor = Colors.red;
+        statusBgColor = Colors.red.withOpacity(0.12);
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusBgColor = Colors.grey.withOpacity(0.12);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.75,
+          minChildSize: 0.6,
+          maxChildSize: 0.95,
+          builder: (_, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          booking.providerImage,
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, _) => Container(
+                            width: 72,
+                            height: 72,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.person,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              booking.providerName,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              booking.serviceCategory,
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusBgColor,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                booking.status,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildDetailTile(
+                    icon: Icons.confirmation_number_outlined,
+                    label: 'Booking ID',
+                    value: booking.id,
+                    accentColor: const Color(0xFF0B84FF),
+                  ),
+                  _buildDetailTile(
+                    icon: Icons.calendar_today_outlined,
+                    label: 'Date',
+                    value: DateFormat('EEE, MMM d, y').format(booking.date),
+                  ),
+                  _buildDetailTile(
+                    icon: Icons.access_time,
+                    label: 'Time',
+                    value: booking.time,
+                  ),
+                  _buildDetailTile(
+                    icon: Icons.location_on_outlined,
+                    label: 'Address',
+                    value: booking.address,
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Notes',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Add provider notes, access instructions, or attachments here once backend is connected.',
+                    style: TextStyle(color: Colors.grey[700], height: 1.4),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: const Icon(Icons.close),
+                          label: const Text('Close'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey[800],
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // Hook messaging/call action when backend is ready
+                          },
+                          icon: const Icon(Icons.chat_bubble_outline),
+                          label: const Text('Message Provider'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0B84FF),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color accentColor = Colors.black54,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Icon(icon, size: 18, color: accentColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -1,10 +1,14 @@
 // main.dart
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart'; // Import Firebase Core
+import 'firebase_options.dart'; // Import the generated options
 import 'package:quick_fix/screens/login_screen.dart';
 // Import your screens
 //import 'screens/login_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const QuickFixApp());
 }
 

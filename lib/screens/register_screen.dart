@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -8,6 +9,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
   // Controllers for Service Seeker
@@ -43,7 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Additional validation for Service Seeker
+    // Service Seeker Password Check
     if (_isServiceSeeker) {
       if (_seekerPasswordController.text !=
           _seekerConfirmPasswordController.text) {
@@ -55,20 +57,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
+
+    // Determine which data to send based on the selected tab
+    final name = _isServiceSeeker
+        ? _seekerNameController.text
+        : _providerNameController.text;
+    final email = _isServiceSeeker
+        ? _seekerEmailController.text
+        : _providerEmailController.text;
+    final phone = _isServiceSeeker
+        ? _seekerPhoneController.text
+        : _providerPhoneController.text;
+    final password = _isServiceSeeker
+        ? _seekerPasswordController.text
+        : _providerPasswordController.text;
+    final userType = _isServiceSeeker ? 'seeker' : 'provider';
+
+    // Call the REAL Firebase registration
+    final result = await _authService.register(
+      name: name,
+      email: email,
+      phone: phone,
+      password: password,
+      userType: userType,
+    );
+
     setState(() => _isLoading = false);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _isServiceSeeker
-                ? 'Service Seeker account created!'
-                : 'Provider account created!',
+    if (result['success'] == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully! Please login.'),
           ),
-        ),
-      );
-      Navigator.pop(context);
+        );
+        Navigator.pop(context); // Go back to Login Screen
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Registration failed')),
+        );
+      }
     }
   }
 
