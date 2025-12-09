@@ -1,5 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
-//import 'package:cloud_firestore/cloud_firestore.dart'; // Optional: If you want to save extra user data to Firestore later
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import '../models/user_model.dart';
 
 class AuthService {
@@ -7,102 +8,130 @@ class AuthService {
   factory AuthService() => _instance;
   AuthService._internal();
 
-  // Instance of Firebase Auth
-  final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseDatabase _db = FirebaseDatabase.instance;
 
-  // Get current user in your custom User model format
-  User? get currentUser {
+  // Stream for Auth State Changes (used in main.dart)
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Fetch current user profile from Realtime Database
+  Future<UserModel?> getUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) return null;
 
-    // Note: To get the "userType" (seeker vs provider), you would usually
-    // fetch this from a Firestore document associated with this UID.
-    // For now, we will default to 'seeker' or handle it via logic.
-    return User(
-      id: user.uid,
-      email: user.email ?? '',
-      name: user.displayName ?? 'User',
-      userType:
-          'seeker', // Placeholder: You need Firestore to store userType properly
-    );
+    try {
+      // Add timeout to prevent infinite loading
+      final snapshot = await _db
+          .ref('users/${user.uid}')
+          .get()
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw TimeoutException('Profile fetch timed out');
+            },
+          );
+
+      if (snapshot.exists && snapshot.value != null) {
+        return UserModel.fromMap(
+          snapshot.value as Map<dynamic, dynamic>,
+          user.uid,
+        );
+      }
+    } catch (e) {
+      print("Error fetching user profile: $e");
+      // Re-throw the error so FutureBuilder can handle it
+      rethrow;
+    }
+    return null;
   }
 
-  // Register method
+  // Register with Realtime Database support
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
     required String phone,
     required String password,
     required String userType,
+    // Optional provider fields
+    String? category,
+    String? rate,
+    String? about,
   }) async {
     try {
-      // 1. Create User in Firebase Auth
+      // 1. Create Auth User
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
+      final uid = credential.user!.uid;
 
-      // 2. Update Display Name
-      await credential.user?.updateDisplayName(name);
+      // 2. Prepare Data
+      final newUser = UserModel(
+        id: uid,
+        email: email,
+        name: name,
+        phone: phone,
+        userType: userType,
+        category: category,
+        rate: rate != null ? double.tryParse(rate) : null,
+        about: about,
+      );
 
-      // 3. (Optional but Recommended) Save extra data like phone & userType to Firestore
-      // await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
-      //   'name': name,
-      //   'email': email,
-      //   'phone': phone,
-      //   'userType': userType,
-      //   'createdAt': FieldValue.serverTimestamp(),
-      // });
+      // 3. Save to Realtime Database at users/$uid
+      await _db.ref('users/$uid').set(newUser.toMap());
 
       return {'success': true, 'message': 'Account created successfully!'};
-    } on firebase_auth.FirebaseAuthException catch (e) {
-      String message = 'Registration failed.';
-      if (e.code == 'weak-password') {
-        message = 'The password provided is too weak.';
-      } else if (e.code == 'email-already-in-use') {
-        message = 'The account already exists for that email.';
-      }
-      return {'success': false, 'message': message};
+    } on FirebaseAuthException catch (e) {
+      return {'success': false, 'message': e.message ?? 'Registration failed'};
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  // Login method
+  // Login with Role Check
   Future<Map<String, dynamic>> login(
     String email,
     String password,
-    String userType,
+    String expectedRole, // 'seeker' or 'provider'
   ) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      // 1. Sign In
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      // Note: Here you would usually fetch the user document from Firestore
-      // to check if the `userType` matches what they selected in the UI.
+      // 2. Fetch User Data to verify Role
+      final uid = credential.user!.uid;
+      final snapshot = await _db.ref('users/$uid').get();
+
+      if (snapshot.exists && snapshot.value != null) {
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        final String role = data['userType'] ?? 'seeker';
+
+        // 3. Verify Role Matches Toggle
+        if (role != expectedRole) {
+          await _auth.signOut(); // Logout if mismatch
+          return {
+            'success': false,
+            'message':
+                'Account exists but is registered as a ${role.toUpperCase()}. Please switch tabs.',
+          };
+        }
+      } else {
+        // Handle case where auth exists but DB record doesn't (legacy/error)
+        // For now, allow entry or force logout
+      }
 
       return {'success': true, 'message': 'Login successful!'};
-    } on firebase_auth.FirebaseAuthException catch (e) {
-      String message = 'Login failed.';
-      if (e.code == 'user-not-found') {
-        message = 'No user found for that email.';
-      } else if (e.code == 'wrong-password') {
-        message = 'Wrong password provided.';
-      } else if (e.code == 'invalid-credential') {
-        message = 'Invalid email or password.';
-      }
-      return {'success': false, 'message': message};
+    } on FirebaseAuthException catch (e) {
+      return {'success': false, 'message': e.message ?? 'Login failed.'};
     } catch (e) {
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  // Logout method
   Future<void> logout() async {
     await _auth.signOut();
-  }
-
-  // Check if user is logged in
-  bool isLoggedIn() {
-    return _auth.currentUser != null;
   }
 }

@@ -45,7 +45,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Service Seeker Password Check
     if (_isServiceSeeker) {
       if (_seekerPasswordController.text !=
           _seekerConfirmPasswordController.text) {
@@ -58,7 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    // Determine which data to send based on the selected tab
+    // Prepare data
     final name = _isServiceSeeker
         ? _seekerNameController.text
         : _providerNameController.text;
@@ -73,13 +72,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
         : _providerPasswordController.text;
     final userType = _isServiceSeeker ? 'seeker' : 'provider';
 
-    // Call the REAL Firebase registration
+    // Provider specific data
+    final category = _isServiceSeeker ? null : _selectedCategory;
+    final rate = _isServiceSeeker ? null : _rateController.text;
+    final about = _isServiceSeeker ? null : _aboutController.text;
+
+    // Call Auth Service
     final result = await _authService.register(
       name: name,
       email: email,
       phone: phone,
       password: password,
       userType: userType,
+      category: category,
+      rate: rate,
+      about: about,
     );
 
     setState(() => _isLoading = false);
@@ -87,11 +94,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (result['success'] == true) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully! Please login.'),
-          ),
+          const SnackBar(content: Text('Account created! Please login.')),
         );
-        Navigator.pop(context); // Go back to Login Screen
+        Navigator.pop(context);
       }
     } else {
       if (mounted) {

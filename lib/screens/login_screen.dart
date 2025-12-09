@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../screens/register_screen.dart';
-import '../screens/main_screen.dart';
-import 'provider/provider_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,39 +23,26 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
 
       final userType = isServiceSeeker ? 'seeker' : 'provider';
+
       final result = await _authService.login(
         _emailController.text,
         _passwordController.text,
-        userType,
+        userType, // Pass the toggle value to validate role
       );
 
       setState(() => _isLoading = false);
 
       final success = result['success'] == true;
-      final message =
-          result['message']?.toString() ??
-          (success ? 'Login successful!' : 'Login failed. Please try again.');
 
       if (success && mounted) {
-        // Navigate to home screen
-        if (isServiceSeeker) {
-          // Go to Service Seeker App (MainScreen)
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const MainScreen()),
-          );
-        } else {
-          // Go to Provider App (ProviderMainScreen)
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const ProviderMainScreen()),
-          );
-        }
+        // Don't navigate manually - let AuthWrapper handle navigation based on auth state
+        // The AuthWrapper in main.dart will automatically detect the auth state change
+        // and navigate to the appropriate screen based on user profile
+        // This prevents navigation conflicts and ensures consistent routing
       } else if (mounted) {
-        // Show error
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Login failed')),
+        );
       }
     }
   }

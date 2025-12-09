@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
+import '../../services/database_service.dart';
 import 'provider_profile_screen.dart';
 
 class ProviderListScreen extends StatefulWidget {
@@ -12,64 +13,12 @@ class ProviderListScreen extends StatefulWidget {
 }
 
 class _ProviderListScreenState extends State<ProviderListScreen> {
-  // --- DUMMY DATA (Matches your screenshot) ---
-  final List<Provider> allProviders = [
-    Provider(
-      id: "1",
-      name: "Juan Dela Cruz",
-      category: "Plumbing",
-      rating: 4.5,
-      reviewCount: 127,
-      isAvailable: true,
-      pricePerHour: 500,
-      phoneNumber: "0917-123-4567",
-      location: "Davao City",
-      description:
-          "Licensed plumber with 10 years of experience. Specializing in residential and commercial plumbing solutions. Available for emergency repairs.",
-      tags: ["Pipe Installation", "Leak Repair", "Water Heater"],
-      imageUrl: "https://i.pravatar.cc/300?img=11", // Random man image
-    ),
-    Provider(
-      id: "2",
-      name: "Roberto Lim",
-      category: "Plumbing",
-      rating: 4.8,
-      reviewCount: 89,
-      isAvailable: false,
-      pricePerHour: 450,
-      phoneNumber: "0918-555-0199",
-      location: "Davao City",
-      description:
-          "Expert in drainage systems and faucet repairs. Quick and reliable service.",
-      tags: ["Drainage", "Faucets", "Maintenance"],
-      imageUrl: "https://i.pravatar.cc/300?img=33", // Random man image
-    ),
-    // Add an electrician to test filtering
-    Provider(
-      id: "3",
-      name: "Sarah Spark",
-      category: "Electrical",
-      rating: 5.0,
-      reviewCount: 40,
-      isAvailable: true,
-      pricePerHour: 600,
-      phoneNumber: "0920-111-2222",
-      location: "Manila",
-      description: "Certified electrician for home wiring.",
-      tags: ["Wiring", "Lighting"],
-      imageUrl: "https://i.pravatar.cc/300?img=5",
-    ),
-  ];
+  final DatabaseService _dbService = DatabaseService();
 
   @override
   Widget build(BuildContext context) {
-    // Filter the list based on the category passed from Home Screen
-    final filteredProviders = allProviders
-        .where((p) => p.category == widget.categoryName)
-        .toList();
-
     return Scaffold(
-      backgroundColor: Colors.grey[50], // Light grey background
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -84,63 +33,46 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.tune, color: Colors.black), // Filter icon
-            onPressed: () {},
-          ),
-        ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Search Bar
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: const TextField(
-                  decoration: InputDecoration(
-                    hintText: "Search providers...",
-                    prefixIcon: Icon(Icons.search, color: Colors.grey),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
+      body: StreamBuilder<List<UserModel>>(
+        stream: _dbService.getProvidersByCategory(widget.categoryName),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-              // 2. Results Count
-              Text(
-                "${filteredProviders.length} providers found",
-                style: TextStyle(color: Colors.grey[600], fontSize: 14),
-              ),
-              const SizedBox(height: 16),
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          }
 
-              // 3. The List of Cards
-              ListView.builder(
-                physics:
-                    const NeverScrollableScrollPhysics(), // Disable scrolling inside scrollview
-                shrinkWrap: true,
-                itemCount: filteredProviders.length,
-                itemBuilder: (context, index) {
-                  return _buildProviderCard(filteredProviders[index]);
-                },
+          final providers = snapshot.data ?? [];
+
+          if (providers.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.person_off_outlined, size: 48, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text("No providers found for ${widget.categoryName}"),
+                ],
               ),
-            ],
-          ),
-        ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: providers.length,
+            itemBuilder: (context, index) {
+              return _buildProviderCard(providers[index]);
+            },
+          );
+        },
       ),
     );
   }
 
-  // --- WIDGET FOR THE CARD ---
-  Widget _buildProviderCard(Provider provider) {
+  Widget _buildProviderCard(UserModel provider) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -160,27 +92,27 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Row: Image + Name/Rating
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Profile Image
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    provider.imageUrl,
+                  child: Container(
                     width: 80,
                     height: 80,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: 80,
-                      height: 80,
-                      color: Colors.grey[300],
-                    ),
+                    color: Colors.grey[200],
+                    child:
+                        provider.imageUrl != null &&
+                            provider.imageUrl!.isNotEmpty
+                        ? Image.network(provider.imageUrl!, fit: BoxFit.cover)
+                        : const Icon(
+                            Icons.person,
+                            size: 40,
+                            color: Colors.grey,
+                          ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                // Details
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,7 +123,6 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
-                        overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
                       const SizedBox(height: 4),
@@ -213,7 +144,6 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      // Availability Badge
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -224,36 +154,17 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
                               ? Colors.green.withOpacity(0.1)
                               : Colors.red.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
+                        ),
+                        child: Text(
+                          provider.isAvailable ? "Available" : "Busy",
+                          style: TextStyle(
                             color: provider.isAvailable
-                                ? Colors.green
-                                : Colors.red,
-                            width: 1,
+                                ? Colors.green[700]
+                                : Colors.red[700],
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.circle,
-                              size: 8,
-                              color: provider.isAvailable
-                                  ? Colors.green
-                                  : Colors.red,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              provider.isAvailable ? "Available" : "Busy",
-                              style: TextStyle(
-                                color: provider.isAvailable
-                                    ? Colors.green[700]
-                                    : Colors.red[700],
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     ],
                   ),
@@ -261,142 +172,37 @@ class _ProviderListScreenState extends State<ProviderListScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Price and Phone Row
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Flexible(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        "₱${provider.pricePerHour.toStringAsFixed(0)}",
-                        style: const TextStyle(
-                          color: Color(0xFF0B84FF), // Your blue brand color
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                Text(
+                  "₱${provider.rate?.toStringAsFixed(0) ?? '0'} /hr",
+                  style: const TextStyle(
+                    color: Color(0xFF0B84FF),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    // Navigate to Profile when clicking "View Profile"
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            ProviderProfileScreen(provider: provider),
                       ),
-                      const Text(
-                        " /hour",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Icon(Icons.phone, size: 16, color: Colors.grey[400]),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    provider.phoneNumber,
-                    style: TextStyle(color: Colors.grey[600]),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // Location
-            Row(
-              children: [
-                Icon(
-                  Icons.location_on_outlined,
-                  size: 16,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    provider.location,
-                    style: TextStyle(color: Colors.grey[600]),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Description
-            Text(
-              provider.description,
-              style: TextStyle(color: Colors.grey[800], height: 1.4),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-
-            // Tags (Chips)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: provider.tags.map((tag) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    tag,
-                    style: TextStyle(color: Colors.grey[800], fontSize: 12),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
-
-            // Buttons (View Profile & Book Now)
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      // --- NEW NAVIGATION LOGIC ---
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              ProviderProfileScreen(provider: provider),
-                        ),
-                      );
-                    },
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: BorderSide(color: Colors.grey.shade300),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      "View Profile",
-                      style: TextStyle(color: Colors.black),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0B84FF),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0B84FF), // Brand Blue
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      "Book Now",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  child: const Text(
+                    "View Profile",
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
               ],
