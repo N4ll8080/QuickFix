@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
-import '../login_screen.dart';
 
 class ServiceSeekerProfileScreen extends StatefulWidget {
   const ServiceSeekerProfileScreen({super.key});
@@ -16,7 +15,6 @@ class ServiceSeekerProfileScreen extends StatefulWidget {
 class _ServiceSeekerProfileScreenState
     extends State<ServiceSeekerProfileScreen> {
   final DatabaseService _dbService = DatabaseService();
-  final String _uid = FirebaseAuth.instance.currentUser!.uid;
 
   // --- EDIT PROFILE DIALOG ---
   Future<void> _showEditProfileDialog(UserModel user) async {
@@ -116,67 +114,83 @@ class _ServiceSeekerProfileScreenState
 
     if (confirm != true) return;
 
+    // Centralized logout: let AuthWrapper respond to authStateChanges
     await AuthService().logout();
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (Route<dynamic> route) => false,
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      body: StreamBuilder<UserModel?>(
-        stream: _dbService.getUserStream(_uid),
-        builder: (context, userSnapshot) {
-          // Show loading only if we have NO data yet
-          if (userSnapshot.connectionState == ConnectionState.waiting &&
-              !userSnapshot.hasData) {
+      body: StreamBuilder<User?>(
+        // Bind profile + bookings to live auth so we never query with a stale UID
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, authSnapshot) {
+          if (authSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (userSnapshot.data == null) {
-            return const Center(child: Text("User not found"));
+          final authUser = authSnapshot.data;
+          if (authUser == null) {
+            return const Center(
+              child: Text(
+                'You are not logged in.\nPlease sign in to view your profile.',
+                textAlign: TextAlign.center,
+              ),
+            );
           }
 
-          final user = userSnapshot.data!;
+          final uid = authUser.uid;
 
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeader(user),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      // Nested StreamBuilder to get real booking counts
-                      StreamBuilder<List<Booking>>(
-                        stream: _dbService.getSeekerBookings(_uid),
-                        builder: (context, bookingSnapshot) {
-                          final bookings = bookingSnapshot.data ?? [];
-                          final total = bookings.length;
-                          final completed = bookings
-                              .where((b) => b.status == 'Completed')
-                              .length;
+          return StreamBuilder<UserModel?>(
+            stream: _dbService.getUserStream(uid),
+            builder: (context, userSnapshot) {
+              // Show loading only if we have NO data yet
+              if (userSnapshot.connectionState == ConnectionState.waiting &&
+                  !userSnapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-                          return _buildStatsRow(total, completed);
-                        },
+              if (userSnapshot.data == null) {
+                return const Center(child: Text("User not found"));
+              }
+
+              final user = userSnapshot.data!;
+
+              return SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildHeader(user),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 20),
+                          // Nested StreamBuilder to get real booking counts
+                          StreamBuilder<List<Booking>>(
+                            stream: _dbService.getSeekerBookings(uid),
+                            builder: (context, bookingSnapshot) {
+                              final bookings = bookingSnapshot.data ?? [];
+                              final total = bookings.length;
+                              final completed = bookings
+                                  .where((b) => b.status == 'Completed')
+                                  .length;
+
+                              return _buildStatsRow(total, completed);
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          _buildAccountInfoCard(user),
+                          const SizedBox(height: 30),
+                          _buildActionButtons(user),
+                          const SizedBox(height: 40),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                      _buildAccountInfoCard(user),
-                      const SizedBox(height: 30),
-                      _buildActionButtons(user),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           );
         },
       ),

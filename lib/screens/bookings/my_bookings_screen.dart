@@ -13,7 +13,6 @@ class MyBookingsScreen extends StatefulWidget {
 
 class _MyBookingsScreenState extends State<MyBookingsScreen> {
   final DatabaseService _dbService = DatabaseService();
-  final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
   String _selectedFilter = 'All';
 
   @override
@@ -28,69 +27,91 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // Filter Tabs
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterTab("All"),
-                  _buildFilterTab("Pending"),
-                  _buildFilterTab("Accepted"),
-                  _buildFilterTab("Declined"),
-                ],
+      body: StreamBuilder<User?>(
+        // Drive DB access directly from the live auth state to avoid using a stale UID
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, authSnapshot) {
+          if (authSnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final user = authSnapshot.data;
+          if (user == null) {
+            return const Center(
+              child: Text(
+                'You are not logged in.\nPlease sign in to view your bookings.',
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 20),
+            );
+          }
 
-            // Booking List Stream
-            Expanded(
-              child: StreamBuilder<List<Booking>>(
-                stream: _dbService.getSeekerBookings(_currentUserId),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+          final currentUserId = user.uid;
 
-                  // Filter List based on selection
-                  final allBookings = snapshot.data ?? [];
-                  final filteredList = _selectedFilter == 'All'
-                      ? allBookings
-                      : allBookings
-                            .where((b) => b.status == _selectedFilter)
-                            .toList();
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // Filter Tabs
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterTab("All"),
+                      _buildFilterTab("Pending"),
+                      _buildFilterTab("Accepted"),
+                      _buildFilterTab("Declined"),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
 
-                  if (filteredList.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.calendar_today_outlined,
-                            size: 48,
-                            color: Colors.grey[300],
+                // Booking List Stream
+                Expanded(
+                  child: StreamBuilder<List<Booking>>(
+                    stream: _dbService.getSeekerBookings(currentUserId),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      // Filter List based on selection
+                      final allBookings = snapshot.data ?? [];
+                      final filteredList = _selectedFilter == 'All'
+                          ? allBookings
+                          : allBookings
+                                .where((b) => b.status == _selectedFilter)
+                                .toList();
+
+                      if (filteredList.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.calendar_today_outlined,
+                                size: 48,
+                                color: Colors.grey[300],
+                              ),
+                              const SizedBox(height: 16),
+                              Text("No $_selectedFilter bookings found"),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          Text("No $_selectedFilter bookings found"),
-                        ],
-                      ),
-                    );
-                  }
+                        );
+                      }
 
-                  return ListView.builder(
-                    itemCount: filteredList.length,
-                    itemBuilder: (context, index) {
-                      return _buildBookingCard(filteredList[index]);
+                      return ListView.builder(
+                        itemCount: filteredList.length,
+                        itemBuilder: (context, index) {
+                          return _buildBookingCard(filteredList[index]);
+                        },
+                      );
                     },
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

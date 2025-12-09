@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../screens/register_screen.dart';
+import '../screens/debug_account_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -322,6 +323,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
+                            ),
+                            // In login_screen.dart, add this after the "Sign up" link:
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const DebugAccountScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text('Debug Account'),
                             ),
                           ],
                         ),

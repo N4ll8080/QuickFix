@@ -12,7 +12,6 @@ class ProviderRequestsScreen extends StatefulWidget {
 
 class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
   final DatabaseService _dbService = DatabaseService();
-  final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
   // Handle Accept/Decline
   Future<void> _updateStatus(String bookingId, String status) async {
@@ -44,28 +43,49 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
-      body: StreamBuilder<List<Booking>>(
-        stream: _dbService.getProviderBookings(_currentUserId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      body: StreamBuilder<User?>(
+        // Tie provider requests to the live auth state
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, authSnapshot) {
+          if (authSnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Filter only 'Pending' requests for this screen?
-          // Or show all. Let's show only Pending for "Requests" screen.
-          final requests = (snapshot.data ?? [])
-              .where((b) => b.status == 'Pending')
-              .toList();
-
-          if (requests.isEmpty) {
-            return const Center(child: Text("No pending requests"));
+          final user = authSnapshot.data;
+          if (user == null) {
+            return const Center(
+              child: Text(
+                'You are not logged in.\nPlease sign in to view incoming requests.',
+                textAlign: TextAlign.center,
+              ),
+            );
           }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: requests.length,
-            itemBuilder: (context, index) {
-              return _buildRequestCard(requests[index]);
+          final currentUserId = user.uid;
+
+          return StreamBuilder<List<Booking>>(
+            stream: _dbService.getProviderBookings(currentUserId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              // Filter only 'Pending' requests for this screen
+              final requests = (snapshot.data ?? [])
+                  .where((b) => b.status == 'Pending')
+                  .toList();
+
+              if (requests.isEmpty) {
+                return const Center(child: Text("No pending requests"));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: requests.length,
+                itemBuilder: (context, index) {
+                  return _buildRequestCard(requests[index]);
+                },
+              );
             },
           );
         },

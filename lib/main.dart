@@ -59,118 +59,222 @@ class QuickFixApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final authService = AuthService();
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
 
+class _AuthWrapperState extends State<AuthWrapper> {
+  final authService = AuthService();
+
+  // Track if we're in the middle of a logout to prevent race conditions
+  bool _isLoggingOut = false;
+
+  @override
+  Widget build(BuildContext context) {
     return StreamBuilder(
       stream: authService.authStateChanges,
       builder: (context, snapshot) {
-        // 1. If waiting for auth state
+        // 1. Show loading while determining auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading...'),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // 2. If no user is logged in, show login screen
+        if (!snapshot.hasData || snapshot.data == null) {
+          // Reset logout flag
+          _isLoggingOut = false;
+          return const LoginScreen();
+        }
+
+        // 3. User is logged in - fetch their profile
+        // Don't fetch if we're in the middle of logging out
+        if (_isLoggingOut) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // 2. If user is logged in
-        if (snapshot.hasData) {
-          // Fetch user profile to determine role
-          return FutureBuilder<UserModel?>(
-            future: authService.getUserProfile(),
-            builder: (context, profileSnapshot) {
-              // Handle loading state
-              if (profileSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
+        return FutureBuilder<UserModel?>(
+          // Use a key to force rebuild when auth state changes
+          key: ValueKey(snapshot.data?.uid),
+          future: authService.getUserProfile(),
+          builder: (context, profileSnapshot) {
+            // Show loading while fetching profile
+            if (profileSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Loading profile...'),
+                    ],
+                  ),
+                ),
+              );
+            }
 
-              // Handle error state - if profile fetch fails, show error and allow retry
-              if (profileSnapshot.hasError) {
-                final error = profileSnapshot.error;
-                // Check if it's a timeout or network error
-                final isTimeoutError =
-                    error.toString().contains('TimeoutException') ||
-                    error.toString().contains('timeout');
+            // Handle errors with better UX
+            if (profileSnapshot.hasError) {
+              final error = profileSnapshot.error;
+              final isTimeoutError =
+                  error.toString().contains('TimeoutException') ||
+                  error.toString().contains('timeout');
 
-                // Show error message to user instead of immediately logging out
-                // Only log out if it's a persistent error after retries
-                return Scaffold(
-                  body: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            size: 64,
-                            color: Colors.red,
+              return Scaffold(
+                body: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          isTimeoutError
+                              ? 'Connection Timeout'
+                              : 'Error Loading Profile',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            isTimeoutError
-                                ? 'Connection Timeout'
-                                : 'Error Loading Profile',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            isTimeoutError
-                                ? 'Unable to connect to the server. Please check your internet connection and try again.'
-                                : 'Failed to load your profile. Please try logging in again.',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.black54),
-                          ),
-                          const SizedBox(height: 24),
-                          ElevatedButton(
-                            onPressed: () {
-                              // Log out and return to login screen
-                              authService.logout();
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0B84FF),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 32,
-                                vertical: 12,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          isTimeoutError
+                              ? 'Unable to connect to the server. Please check your internet connection.'
+                              : 'Failed to load your profile.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton(
+                              onPressed: () {
+                                // Try again by rebuilding
+                                setState(() {});
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0B84FF),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 12,
+                                ),
+                              ),
+                              child: const Text(
+                                'Retry',
+                                style: TextStyle(color: Colors.white),
                               ),
                             ),
-                            child: const Text('Return to Login'),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 12),
+                            OutlinedButton(
+                              onPressed: () async {
+                                setState(() => _isLoggingOut = true);
+                                await authService.logout();
+                                // State will rebuild automatically via StreamBuilder
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32,
+                                  vertical: 12,
+                                ),
+                              ),
+                              child: const Text('Logout'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                );
+                ),
+              );
+            }
+
+            // Handle successful profile fetch
+            if (profileSnapshot.hasData && profileSnapshot.data != null) {
+              final user = profileSnapshot.data!;
+
+              // Route to correct screen based on user type
+              if (user.userType == 'provider') {
+                return const ProviderMainScreen();
+              } else {
+                return const MainScreen();
               }
+            }
 
-              // Handle successful data fetch
-              if (profileSnapshot.hasData && profileSnapshot.data != null) {
-                final user = profileSnapshot.data!;
-                if (user.userType == 'provider') {
-                  return const ProviderMainScreen();
-                } else {
-                  return const MainScreen();
-                }
-              }
-
-              // Fallback if profile fetch returns null (e.g. deleted from DB but in Auth)
-              // Log out to prevent infinite loop
-              authService.logout();
-              return const LoginScreen();
-            },
-          );
-        }
-
-        // 3. If user is NOT logged in
-        return const LoginScreen();
+            // Fallback: Profile is null (shouldn't happen, but handle it)
+            return Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.account_circle_outlined,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Profile Not Found',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Your account exists but profile data is missing.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () async {
+                          setState(() => _isLoggingOut = true);
+                          await authService.logout();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 12,
+                          ),
+                        ),
+                        child: const Text(
+                          'Logout',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
       },
     );
   }

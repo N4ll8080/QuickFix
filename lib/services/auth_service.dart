@@ -10,28 +10,38 @@ class AuthService {
   AuthService._internal();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  // Configure Firebase Realtime Database with explicit URL
-  // If your database is in a specific region, update the URL accordingly
-  // Format: https://<project-id>-default-rtdb.<region>.firebasedatabase.app
-  // For default region: https://<project-id>-default-rtdb.firebaseio.com
-  // Note: If this URL doesn't work, check your Firebase Console > Realtime Database > Data tab for the correct URL
   final FirebaseDatabase _db = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
     databaseURL:
         'https://quick-fix-89d7f-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
 
-  // Stream for Auth State Changes (used in main.dart)
+  // Cache to prevent multiple simultaneous profile fetches
+  UserModel? _cachedProfile;
+  String? _cachedUid;
+
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // Fetch current user profile from Realtime Database
+  // Clear cache on logout
+  void _clearCache() {
+    _cachedProfile = null;
+    _cachedUid = null;
+  }
+
   Future<UserModel?> getUserProfile({int retryCount = 2}) async {
     final user = _auth.currentUser;
-    if (user == null) return null;
+    if (user == null) {
+      _clearCache();
+      return null;
+    }
+
+    // Return cached profile if same user
+    if (_cachedUid == user.uid && _cachedProfile != null) {
+      return _cachedProfile;
+    }
 
     for (int attempt = 0; attempt <= retryCount; attempt++) {
       try {
-        // Increase timeout to 15 seconds and add retry logic
         final snapshot = await _db
             .ref('users/${user.uid}')
             .get()
@@ -45,37 +55,36 @@ class AuthService {
             );
 
         if (snapshot.exists && snapshot.value != null) {
-          return UserModel.fromMap(
+          final profile = UserModel.fromMap(
             snapshot.value as Map<dynamic, dynamic>,
             user.uid,
           );
+
+          // Cache the profile
+          _cachedProfile = profile;
+          _cachedUid = user.uid;
+
+          return profile;
         }
 
-        // If snapshot doesn't exist, return null (no retry needed)
         return null;
       } on TimeoutException catch (e) {
         print(
           "Error fetching user profile (attempt ${attempt + 1}/${retryCount + 1}): $e",
         );
-        // If this is the last attempt, re-throw the error
         if (attempt == retryCount) {
           rethrow;
         }
-        // Wait a bit before retrying
         await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
       } catch (e) {
         print("Error fetching user profile: $e");
-        // For non-timeout errors, check if it's a network/permission issue
         if (e.toString().contains('Permission denied') ||
             e.toString().contains('network')) {
-          // If this is the last attempt, re-throw
           if (attempt == retryCount) {
             rethrow;
           }
-          // Wait before retrying
           await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
         } else {
-          // For other errors, don't retry
           rethrow;
         }
       }
@@ -84,27 +93,23 @@ class AuthService {
     return null;
   }
 
-  // Register with Realtime Database support
   Future<Map<String, dynamic>> register({
     required String name,
     required String email,
     required String phone,
     required String password,
     required String userType,
-    // Optional provider fields
     String? category,
     String? rate,
     String? about,
   }) async {
     try {
-      // 1. Create Auth User
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
       final uid = credential.user!.uid;
 
-      // 2. Prepare Data
       final newUser = UserModel(
         id: uid,
         email: email,
@@ -116,8 +121,10 @@ class AuthService {
         about: about,
       );
 
-      // 3. Save to Realtime Database at users/$uid
       await _db.ref('users/$uid').set(newUser.toMap());
+
+      // Immediately log out after registration to prevent auto-login issues
+      await logout();
 
       return {'success': true, 'message': 'Account created successfully!'};
     } on FirebaseAuthException catch (e) {
@@ -127,50 +134,109 @@ class AuthService {
     }
   }
 
-  // Login with Role Check
   Future<Map<String, dynamic>> login(
     String email,
     String password,
-    String expectedRole, // 'seeker' or 'provider'
+    String expectedRole,
   ) async {
     try {
-      // 1. Sign In
+      // Clear any existing cache first
+      _clearCache();
+
+      // Sign In
       final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // 2. Fetch User Data to verify Role
       final uid = credential.user!.uid;
-      final snapshot = await _db.ref('users/$uid').get();
 
-      if (snapshot.exists && snapshot.value != null) {
-        final data = snapshot.value as Map<dynamic, dynamic>;
-        final String role = data['userType'] ?? 'seeker';
+      // Add a small delay to ensure Firebase is ready
+      await Future.delayed(const Duration(milliseconds: 500));
 
-        // 3. Verify Role Matches Toggle
-        if (role != expectedRole) {
-          await _auth.signOut(); // Logout if mismatch
+      try {
+        final snapshot = await _db
+            .ref('users/$uid')
+            .get()
+            .timeout(const Duration(seconds: 10));
+
+        if (snapshot.exists && snapshot.value != null) {
+          final data = snapshot.value as Map<dynamic, dynamic>;
+          final String role = data['userType'] ?? 'seeker';
+
+          print('DEBUG: User role from DB: $role, Expected: $expectedRole');
+
+          // Verify Role Matches
+          if (role != expectedRole) {
+            await logout(); // This will clear cache too
+
+            final roleDisplay = role == 'provider'
+                ? 'Service Provider'
+                : 'Service Seeker';
+            final expectedDisplay = expectedRole == 'provider'
+                ? 'Service Provider'
+                : 'Service Seeker';
+
+            return {
+              'success': false,
+              'message':
+                  'This account is registered as a $roleDisplay. Please switch to the $roleDisplay tab to login.',
+            };
+          }
+
+          // Cache the profile for immediate use
+          _cachedProfile = UserModel.fromMap(data, uid);
+          _cachedUid = uid;
+        } else {
+          print('WARNING: Auth user exists but no DB record found');
+          await logout();
           return {
             'success': false,
-            'message':
-                'Account exists but is registered as a ${role.toUpperCase()}. Please switch tabs.',
+            'message': 'Account data not found. Please contact support.',
           };
         }
-      } else {
-        // Handle case where auth exists but DB record doesn't (legacy/error)
-        // For now, allow entry or force logout
+      } on TimeoutException {
+        print('Timeout fetching user profile during login');
+        // Don't log out on timeout - let AuthWrapper handle it
+        return {
+          'success': false,
+          'message':
+              'Connection timeout. Please check your internet and try again.',
+        };
       }
 
       return {'success': true, 'message': 'Login successful!'};
     } on FirebaseAuthException catch (e) {
-      return {'success': false, 'message': e.message ?? 'Login failed.'};
+      String message = 'Login failed.';
+
+      if (e.code == 'user-not-found') {
+        message = 'No account found with this email.';
+      } else if (e.code == 'wrong-password') {
+        message = 'Incorrect password.';
+      } else if (e.code == 'invalid-email') {
+        message = 'Invalid email address.';
+      } else if (e.code == 'user-disabled') {
+        message = 'This account has been disabled.';
+      } else if (e.code == 'too-many-requests') {
+        message = 'Too many failed attempts. Please try again later.';
+      } else if (e.code == 'invalid-credential') {
+        message = 'Invalid email or password.';
+      } else {
+        message = e.message ?? 'Login failed.';
+      }
+
+      return {'success': false, 'message': message};
     } catch (e) {
-      return {'success': false, 'message': e.toString()};
+      print('Login error: $e');
+      return {
+        'success': false,
+        'message': 'An error occurred. Please try again.',
+      };
     }
   }
 
   Future<void> logout() async {
+    _clearCache();
     await _auth.signOut();
   }
 }

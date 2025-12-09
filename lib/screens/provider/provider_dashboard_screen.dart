@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
-import '../login_screen.dart';
 
 class ProviderDashboardScreen extends StatefulWidget {
   const ProviderDashboardScreen({super.key});
@@ -15,16 +14,11 @@ class ProviderDashboardScreen extends StatefulWidget {
 
 class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
   final DatabaseService _dbService = DatabaseService();
-  final String _uid = FirebaseAuth.instance.currentUser!.uid;
   bool isAvailable = true;
 
   Future<void> _handleLogout() async {
+    // Centralized logout: let AuthWrapper react to authStateChanges
     await AuthService().logout();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-      (route) => false,
-    );
   }
 
   @override
@@ -45,81 +39,111 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. HEADER (Profile Stream)
-            StreamBuilder<UserModel?>(
-              stream: _dbService.getUserStream(_uid),
-              builder: (context, snapshot) {
-                final user = snapshot.data;
-                if (user == null) return const SizedBox(); // Loading or error
+      body: StreamBuilder<User?>(
+        // Bind dashboard data to the live auth state so we don't keep
+        // querying with a UID after sign-out or token expiry.
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, authSnapshot) {
+          if (authSnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-                // Update local state to match DB once
-                // Note: In production, avoid setting state in build.
-                // We use the stream value directly in the switch.
+          final user = authSnapshot.data;
+          if (user == null) {
+            return const Center(
+              child: Text(
+                'You are not logged in.\nPlease sign in again to view your dashboard.',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
 
-                return _buildHeaderCard(user);
-              },
+          final uid = user.uid;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. HEADER (Profile Stream)
+                StreamBuilder<UserModel?>(
+                  stream: _dbService.getUserStream(uid),
+                  builder: (context, snapshot) {
+                    final profile = snapshot.data;
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        profile == null) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+
+                    if (profile == null) {
+                      return const SizedBox(); // Gracefully handle missing profile
+                    }
+
+                    return _buildHeaderCard(profile);
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                // 2. STATS (Booking Stream)
+                StreamBuilder<List<Booking>>(
+                  stream: _dbService.getProviderBookings(uid),
+                  builder: (context, snapshot) {
+                    final bookings = snapshot.data ?? [];
+
+                    // Calculate Stats
+                    final pending = bookings
+                        .where((b) => b.status == 'Pending')
+                        .length;
+                    final accepted = bookings
+                        .where((b) => b.status == 'Accepted')
+                        .length;
+
+                    // Calculate Earnings (Sum of price for 'Completed' jobs)
+                    final earnings = bookings
+                        .where((b) => b.status == 'Completed')
+                        .fold(0.0, (sum, b) => sum + b.price);
+
+                    return GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 1.5,
+                      children: [
+                        _buildStatCard(
+                          title: "Pending Requests",
+                          value: "$pending",
+                          color: Colors.orange,
+                          bgColor: Colors.orange.withOpacity(0.1),
+                        ),
+                        _buildStatCard(
+                          title: "Active Jobs",
+                          value: "$accepted",
+                          color: Colors.blue,
+                          bgColor: Colors.blue.withOpacity(0.1),
+                        ),
+                        _buildStatCard(
+                          title: "Total Bookings",
+                          value: "${bookings.length}",
+                          color: Colors.green,
+                          bgColor: Colors.green.withOpacity(0.1),
+                        ),
+                        _buildEarningsCard(earnings),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
-
-            const SizedBox(height: 24),
-
-            // 2. STATS (Booking Stream)
-            StreamBuilder<List<Booking>>(
-              stream: _dbService.getProviderBookings(_uid),
-              builder: (context, snapshot) {
-                final bookings = snapshot.data ?? [];
-
-                // Calculate Stats
-                final pending = bookings
-                    .where((b) => b.status == 'Pending')
-                    .length;
-                final accepted = bookings
-                    .where((b) => b.status == 'Accepted')
-                    .length;
-
-                // Calculate Earnings (Sum of price for 'Completed' jobs)
-                // Note: You need to implement a 'Mark as Completed' button in requests to test this incrementing.
-                final earnings = bookings
-                    .where((b) => b.status == 'Completed')
-                    .fold(0.0, (sum, b) => sum + b.price);
-
-                return GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 1.5,
-                  children: [
-                    _buildStatCard(
-                      title: "Pending Requests",
-                      value: "$pending",
-                      color: Colors.orange,
-                      bgColor: Colors.orange.withOpacity(0.1),
-                    ),
-                    _buildStatCard(
-                      title: "Active Jobs",
-                      value: "$accepted",
-                      color: Colors.blue,
-                      bgColor: Colors.blue.withOpacity(0.1),
-                    ),
-                    _buildStatCard(
-                      title: "Total Bookings",
-                      value: "${bookings.length}",
-                      color: Colors.green,
-                      bgColor: Colors.green.withOpacity(0.1),
-                    ),
-                    _buildEarningsCard(earnings),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
