@@ -10,7 +10,35 @@ import 'models/user_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize Firebase with robust error handling
+  try {
+    // Check if Firebase is already initialized
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    // Handle duplicate app error or any other Firebase initialization errors
+    // If Firebase is already initialized (e.g., via auto-initialization on Android),
+    // this will catch the error and allow the app to continue
+    if (e.toString().contains('duplicate-app') ||
+        e.toString().contains('already exists')) {
+      // Firebase is already initialized, which is fine
+      // Try to get the default app to verify it exists
+      try {
+        Firebase.app();
+      } catch (_) {
+        // If we can't get the app, something is wrong
+        rethrow;
+      }
+    } else {
+      // Re-throw other errors as they might be important
+      rethrow;
+    }
+  }
+
   runApp(const QuickFixApp());
 }
 

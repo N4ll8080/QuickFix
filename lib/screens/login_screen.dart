@@ -30,6 +30,8 @@ class _LoginScreenState extends State<LoginScreen> {
         userType, // Pass the toggle value to validate role
       );
 
+      if (!mounted) return;
+
       setState(() => _isLoading = false);
 
       final success = result['success'] == true;

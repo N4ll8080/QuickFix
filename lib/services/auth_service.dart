@@ -17,7 +17,8 @@ class AuthService {
   // Note: If this URL doesn't work, check your Firebase Console > Realtime Database > Data tab for the correct URL
   final FirebaseDatabase _db = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
-    databaseURL: 'https://quick-fix-89d7f-default-rtdb.firebaseio.com',
+    databaseURL:
+        'https://quick-fix-89d7f-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
 
   // Stream for Auth State Changes (used in main.dart)

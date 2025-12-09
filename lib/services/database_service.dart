@@ -1,8 +1,13 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../models/user_model.dart';
 
 class DatabaseService {
-  final FirebaseDatabase _db = FirebaseDatabase.instance;
+  final FirebaseDatabase _db = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL:
+        'https://quick-fix-89d7f-default-rtdb.asia-southeast1.firebasedatabase.app',
+  );
 
   // 1. Get Providers by Category
   Stream<List<UserModel>> getProvidersByCategory(String category) {

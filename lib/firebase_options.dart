@@ -48,6 +48,8 @@ class DefaultFirebaseOptions {
     authDomain: 'quick-fix-89d7f.firebaseapp.com',
     storageBucket: 'quick-fix-89d7f.firebasestorage.app',
     measurementId: 'G-5J1B2Y7V0B',
+    databaseURL:
+        'https://quick-fix-89d7f-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -56,6 +58,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '433582598560',
     projectId: 'quick-fix-89d7f',
     storageBucket: 'quick-fix-89d7f.firebasestorage.app',
+    databaseURL:
+        'https://quick-fix-89d7f-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
