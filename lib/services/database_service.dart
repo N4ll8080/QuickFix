@@ -6,22 +6,28 @@ class DatabaseService {
 
   // 1. Get Providers by Category
   Stream<List<UserModel>> getProvidersByCategory(String category) {
-    return _db.ref('users').onValue.map((event) {
-      final List<UserModel> providers = [];
-      if (event.snapshot.value != null) {
-        final Map<dynamic, dynamic> users =
-            event.snapshot.value as Map<dynamic, dynamic>;
+    return _db
+        .ref('users')
+        // Use orderByChild and equalTo to filter on the server side (REQUIRED INDEX!)
+        .orderByChild('category')
+        .equalTo(category)
+        .onValue
+        .map((event) {
+          final List<UserModel> providers = [];
+          if (event.snapshot.value != null) {
+            final Map<dynamic, dynamic> users =
+                event.snapshot.value as Map<dynamic, dynamic>;
 
-        users.forEach((key, value) {
-          final user = UserModel.fromMap(value, key);
-          // Filter: Must be a provider AND match the category
-          if (user.userType == 'provider' && user.category == category) {
-            providers.add(user);
+            users.forEach((key, value) {
+              final user = UserModel.fromMap(value, key);
+              // Only check userType here, the category is already filtered by the query
+              if (user.userType == 'provider') {
+                providers.add(user);
+              }
+            });
           }
+          return providers;
         });
-      }
-      return providers;
-    });
   }
 
   // 2. Create a Booking

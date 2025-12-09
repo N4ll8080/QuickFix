@@ -61,11 +61,66 @@ class AuthWrapper extends StatelessWidget {
                 );
               }
 
-              // Handle error state - if profile fetch fails, log out and show login
+              // Handle error state - if profile fetch fails, show error and allow retry
               if (profileSnapshot.hasError) {
-                // Log out the user if profile fetch fails
-                authService.logout();
-                return const LoginScreen();
+                final error = profileSnapshot.error;
+                // Check if it's a timeout or network error
+                final isTimeoutError =
+                    error.toString().contains('TimeoutException') ||
+                    error.toString().contains('timeout');
+
+                // Show error message to user instead of immediately logging out
+                // Only log out if it's a persistent error after retries
+                return Scaffold(
+                  body: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            isTimeoutError
+                                ? 'Connection Timeout'
+                                : 'Error Loading Profile',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            isTimeoutError
+                                ? 'Unable to connect to the server. Please check your internet connection and try again.'
+                                : 'Failed to load your profile. Please try logging in again.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.black54),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton(
+                            onPressed: () {
+                              // Log out and return to login screen
+                              authService.logout();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0B84FF),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 12,
+                              ),
+                            ),
+                            child: const Text('Return to Login'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
               }
 
               // Handle successful data fetch

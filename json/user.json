@@ -1,0 +1,25 @@
+{
+  "users": {
+    "USER_AUTH_UID_1": {
+      "id": "USER_AUTH_UID_1",
+      "fullName": "Service Seeker John Doe",
+      "email": "seeker@example.com",
+      "contactNumber": "09123456789",
+      "address": "123 Main St, Manila",
+      "userType": "service_seeker",
+      "imageUrl": "https://example.com/placeholder_seeker.jpg"
+    },
+    "USER_AUTH_UID_2": {
+      "id": "USER_AUTH_UID_2",
+      "fullName": "Provider Jane Smith",
+      "email": "provider@example.com",
+      "contactNumber": "09987654321",
+      "address": "456 Side Rd, Cebu",
+      "userType": "provider",
+      "category": "Plumbing",
+      "description": "24/7 plumbing services.",
+      "rate": 500.0,
+      "imageUrl": "https://example.com/placeholder_provider.jpg"
+    }
+  }
+}

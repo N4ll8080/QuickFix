@@ -1,0 +1,16 @@
+{
+    "bookings": {
+      "BOOKING_ID_1": {
+        "id": "BOOKING_ID_1",
+        "providerId": "USER_AUTH_UID_2",
+        "seekerId": "USER_AUTH_UID_1",
+        "serviceType": "Plumbing",
+        "description": "Leaky faucet in the kitchen.",
+        "date": "2025-12-15",
+        "time": "10:00 AM",
+        "status": "pending",
+        "rate": 500.0,
+        "location": "123 Main St, Manila"
+      }
+    }
+  }

@@ -33,6 +33,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
+  // Method to clear all controllers for the inactive form
+  void _clearInactiveFormControllers() {
+    if (_isServiceSeeker) {
+      // Clear provider form controllers when switching to seeker
+      _providerNameController.clear();
+      _providerEmailController.clear();
+      _providerPhoneController.clear();
+      _providerPasswordController.clear();
+      _rateController.clear();
+      _aboutController.clear();
+      _selectedCategory = null;
+    } else {
+      // Clear seeker form controllers when switching to provider
+      _seekerNameController.clear();
+      _seekerEmailController.clear();
+      _seekerPhoneController.clear();
+      _seekerPasswordController.clear();
+      _seekerConfirmPasswordController.clear();
+    }
+  }
+
   final List<String> categories = [
     'Plumbing',
     'Electrical',
@@ -226,6 +247,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               onTap: () {
                                 setState(() {
                                   _isServiceSeeker = true;
+                                  _clearInactiveFormControllers();
                                   _formKey.currentState?.reset();
                                 });
                               },
@@ -278,6 +300,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               onTap: () {
                                 setState(() {
                                   _isServiceSeeker = false;
+                                  _clearInactiveFormControllers();
                                   _formKey.currentState?.reset();
                                 });
                               },
@@ -538,10 +561,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(height: 16),
 
         _buildLabel("Hourly Rate (₱)"),
-        _buildTextField(
+        TextFormField(
           controller: _rateController,
-          hint: "500",
-          keyboard: TextInputType.number,
+          keyboardType: TextInputType.number,
+          decoration: _inputDecoration(hint: "500"),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return "Please enter your hourly rate";
+            }
+            // Check if the value is a valid number
+            final rate = double.tryParse(value);
+            if (rate == null) {
+              return "Please enter a valid number";
+            }
+            // Check if the rate is positive
+            if (rate <= 0) {
+              return "Rate must be greater than 0";
+            }
+            // Check if the rate is reasonable (e.g., not more than 1 million)
+            if (rate > 1000000) {
+              return "Rate seems too high. Please enter a valid amount";
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 16),
 
