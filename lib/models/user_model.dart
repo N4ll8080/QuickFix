@@ -15,6 +15,7 @@ class UserModel {
   final double rating; // Added for UI display
   final int reviewCount; // Added for UI display
   final bool isAvailable; // Added for UI display
+  final Map<String, dynamic>? availability; // Working days, times, unavailable dates
 
   UserModel({
     required this.id,
@@ -29,6 +30,7 @@ class UserModel {
     this.rating = 0.0,
     this.reviewCount = 0,
     this.isAvailable = true,
+    this.availability,
   });
 
   factory UserModel.fromMap(Map<dynamic, dynamic> map, String id) {
@@ -49,6 +51,9 @@ class UserModel {
           : 0.0,
       reviewCount: map['reviewCount'] ?? 0,
       isAvailable: map['isAvailable'] ?? true,
+      availability: map['availability'] != null
+          ? Map<String, dynamic>.from(map['availability'])
+          : null,
     );
   }
 
@@ -65,6 +70,7 @@ class UserModel {
       'rating': rating,
       'reviewCount': reviewCount,
       'isAvailable': isAvailable,
+      if (availability != null) 'availability': availability,
     };
   }
 }

@@ -3,6 +3,7 @@ import 'provider_dashboard_screen.dart';
 import 'provider_requests_screen.dart';
 import 'provider_bookings_screen.dart';
 import 'provider_profile_screen.dart';
+import '../messages/messages_list_screen.dart';
 
 class ProviderMainScreen extends StatefulWidget {
   const ProviderMainScreen({super.key});
@@ -19,7 +20,8 @@ class _ProviderMainScreenState extends State<ProviderMainScreen> {
     const ProviderDashboardScreen(),
     const ProviderRequestsScreen(),
     const ProviderBookingsScreen(),
-    const ProviderProfileScreen(), // Placeholder
+    const MessagesListScreen(),
+    const ProviderProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -31,7 +33,7 @@ class _ProviderMainScreenState extends State<ProviderMainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Colors.grey[50],
       body: _screens[_selectedIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -48,10 +50,13 @@ class _ProviderMainScreenState extends State<ProviderMainScreen> {
           backgroundColor: Colors.white,
           type: BottomNavigationBarType.fixed,
           currentIndex: _selectedIndex,
-          selectedItemColor: const Color(0xFF0B84FF), // QuickFix Blue
-          unselectedItemColor: Colors.grey,
+          selectedItemColor: const Color(0xFF0B84FF),
+          unselectedItemColor: Colors.grey[600],
           showUnselectedLabels: true,
+          elevation: 0,
           onTap: _onItemTapped,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.dashboard_outlined),
@@ -67,6 +72,11 @@ class _ProviderMainScreenState extends State<ProviderMainScreen> {
               icon: Icon(Icons.calendar_month_outlined),
               activeIcon: Icon(Icons.calendar_month),
               label: 'Bookings',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.message_outlined),
+              activeIcon: Icon(Icons.message),
+              label: 'Messages',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

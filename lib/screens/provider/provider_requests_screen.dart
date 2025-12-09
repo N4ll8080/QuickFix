@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import '../../services/database_service.dart';
 import '../../models/user_model.dart';
+import '../../services/messaging_service.dart';
+import '../../services/auth_service.dart';
+import '../messages/chat_screen.dart';
+import '../bookings/booking_details_screen.dart';
 
 class ProviderRequestsScreen extends StatefulWidget {
   const ProviderRequestsScreen({super.key});
@@ -12,51 +17,104 @@ class ProviderRequestsScreen extends StatefulWidget {
 
 class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
   final DatabaseService _dbService = DatabaseService();
+  final MessagingService _messagingService = MessagingService();
+  final AuthService _authService = AuthService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Handle Accept/Decline
   Future<void> _updateStatus(String bookingId, String status) async {
     try {
       await _dbService.updateBookingStatus(bookingId, status);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Request $status")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Request $status"),
+            backgroundColor: status == 'Accepted' ? Colors.green : Colors.orange,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
       }
+    }
+  }
+
+  Future<void> _openChat(String seekerId, String seekerName, String? seekerImageUrl) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final currentUserModel = await _authService.getUserProfile();
+      if (currentUserModel == null) return;
+
+      final chatId = await _messagingService.getOrCreateChat(
+        currentUser.uid,
+        seekerId,
+        currentUserModel.name,
+        seekerName,
+        userImageUrl1: currentUserModel.imageUrl,
+        userImageUrl2: seekerImageUrl,
+      );
+
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(
+            chatId: chatId,
+            otherUserId: seekerId,
+            otherUserName: seekerName,
+            otherUserImageUrl: seekerImageUrl,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error opening chat: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF0B84FF),
         elevation: 0,
         title: const Text(
           "Incoming Requests",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       ),
       body: StreamBuilder<User?>(
-        // Tie provider requests to the live auth state
-        stream: FirebaseAuth.instance.authStateChanges(),
+        stream: _auth.authStateChanges(),
         builder: (context, authSnapshot) {
           if (authSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0B84FF)),
+              ),
+            );
           }
 
           final user = authSnapshot.data;
           if (user == null) {
-            return const Center(
-              child: Text(
-                'You are not logged in.\nPlease sign in to view incoming requests.',
-                textAlign: TextAlign.center,
+            return Center(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'You are not logged in.\nPlease sign in to view incoming requests.',
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
@@ -67,16 +125,39 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
             stream: _dbService.getProviderBookings(currentUserId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0B84FF)),
+                  ),
+                );
               }
 
-              // Filter only 'Pending' requests for this screen
+              // Filter only 'Pending' or 'Requested' requests
               final requests = (snapshot.data ?? [])
-                  .where((b) => b.status == 'Pending')
+                  .where((b) => b.status == 'Pending' || b.status == 'Requested')
                   .toList();
 
               if (requests.isEmpty) {
-                return const Center(child: Text("No pending requests"));
+                return Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text(
+                          "No pending requests",
+                          style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
               }
 
               return ListView.builder(
@@ -99,12 +180,12 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: const Offset(0, 4),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -115,23 +196,23 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                "New Booking",
+              const Text(
+                "New Booking Request",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF9C4),
+                  color: const Color(0xFFFFC107).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFFFFC107).withOpacity(0.3),
+                  ),
                 ),
                 child: Text(
                   request.status,
                   style: const TextStyle(
-                    color: Color(0xFFFBC02D),
+                    color: Color(0xFFFFC107),
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -141,26 +222,102 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Details
-          _buildIconInfo(
-            Icons.calendar_today,
-            "Date",
-            "${request.date.toLocal()}".split(' ')[0],
+          // Service Category
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B84FF).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.category, color: Color(0xFF0B84FF), size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  request.serviceCategory,
+                  style: const TextStyle(
+                    color: Color(0xFF0B84FF),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
+
+          // Details
+          _buildIconInfo(Icons.calendar_today, "Date", DateFormat('MMMM dd, yyyy').format(request.date)),
+          const SizedBox(height: 12),
           _buildIconInfo(Icons.access_time, "Time", request.time),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           _buildIconInfo(Icons.location_on, "Location", request.address),
           const SizedBox(height: 16),
 
-          const Text("Problem:", style: TextStyle(color: Colors.grey)),
-          Text(
-            request.problemDescription,
-            style: const TextStyle(fontWeight: FontWeight.w500),
+          // Problem Description
+          const Text(
+            "Problem Description:",
+            style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              request.problemDescription,
+              style: const TextStyle(fontSize: 14, height: 1.5),
+            ),
+          ),
+          const SizedBox(height: 20),
 
-          // Actions
+          // Action Buttons
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BookingDetailsScreen(
+                          booking: request,
+                          isProvider: true,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.info_outline, size: 18),
+                  label: const Text("View Details"),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF0B84FF)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _openChat(request.seekerId, 'Customer', null),
+                  icon: const Icon(Icons.message, size: 18),
+                  label: const Text("Message"),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF0B84FF)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -169,13 +326,15 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
                   icon: const Icon(Icons.check, color: Colors.white, size: 20),
                   label: const Text(
                     "Accept",
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C853),
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    elevation: 0,
                   ),
                 ),
               ),
@@ -183,17 +342,18 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () => _updateStatus(request.id, "Declined"),
-                  icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
                   label: const Text(
                     "Decline",
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFEBEE),
-                    elevation: 0,
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    elevation: 0,
                   ),
                 ),
               ),
@@ -207,14 +367,29 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
   Widget _buildIconInfo(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: Colors.grey),
-        const SizedBox(width: 8),
-        Text("$label: ", style: const TextStyle(color: Colors.grey)),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B84FF).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: const Color(0xFF0B84FF)),
+        ),
+        const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-            overflow: TextOverflow.ellipsis,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ],
           ),
         ),
       ],

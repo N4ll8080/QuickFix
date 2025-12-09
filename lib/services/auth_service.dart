@@ -173,9 +173,6 @@ class AuthService {
             final roleDisplay = role == 'provider'
                 ? 'Service Provider'
                 : 'Service Seeker';
-            final expectedDisplay = expectedRole == 'provider'
-                ? 'Service Provider'
-                : 'Service Seeker';
 
             return {
               'success': false,

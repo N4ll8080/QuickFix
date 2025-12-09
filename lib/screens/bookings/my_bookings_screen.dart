@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/database_service.dart';
-import '../../models/user_model.dart'; // Ensure this is the only Booking class imported
+import '../../models/user_model.dart';
+import 'booking_details_screen.dart';
 
 class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({super.key});
@@ -14,102 +15,251 @@ class MyBookingsScreen extends StatefulWidget {
 class _MyBookingsScreenState extends State<MyBookingsScreen> {
   final DatabaseService _dbService = DatabaseService();
   String _selectedFilter = 'All';
+  bool _showHistory = false;
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Accepted':
+      case 'Confirmed':
+        return Colors.green;
+      case 'Pending':
+      case 'Requested':
+        return const Color(0xFFFFC107);
+      case 'Declined':
+      case 'Cancelled':
+        return Colors.red;
+      case 'In Progress':
+        return const Color(0xFF0B84FF);
+      case 'Completed':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          "My Bookings",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-      ),
       body: StreamBuilder<User?>(
-        // Drive DB access directly from the live auth state to avoid using a stale UID
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, authSnapshot) {
           if (authSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0B84FF)),
+              ),
+            );
           }
 
           final user = authSnapshot.data;
           if (user == null) {
-            return const Center(
-              child: Text(
-                'You are not logged in.\nPlease sign in to view your bookings.',
-                textAlign: TextAlign.center,
+            return Center(
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'You are not logged in.\nPlease sign in to view your bookings.',
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
 
           final currentUserId = user.uid;
 
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                // Filter Tabs
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterTab("All"),
-                      _buildFilterTab("Pending"),
-                      _buildFilterTab("Accepted"),
-                      _buildFilterTab("Declined"),
-                    ],
+          return CustomScrollView(
+            slivers: [
+              // App Bar
+              SliverAppBar(
+                expandedHeight: 120,
+                floating: false,
+                pinned: true,
+                backgroundColor: const Color(0xFF0B84FF),
+                flexibleSpace: const FlexibleSpaceBar(
+                  title: Text(
+                    'My Bookings',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 24,
+                    ),
                   ),
+                  centerTitle: true,
                 ),
-                const SizedBox(height: 20),
+              ),
 
-                // Booking List Stream
-                Expanded(
-                  child: StreamBuilder<List<Booking>>(
-                    stream: _dbService.getSeekerBookings(currentUserId),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
+              // Filter Tabs and History Toggle
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    // History Toggle
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _showHistory = false),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: !_showHistory ? const Color(0xFF0B84FF) : Colors.white,
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(12),
+                                    bottomLeft: Radius.circular(12),
+                                  ),
+                                  border: Border.all(
+                                    color: const Color(0xFF0B84FF),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Upcoming',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: !_showHistory ? Colors.white : const Color(0xFF0B84FF),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _showHistory = true),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: _showHistory ? const Color(0xFF0B84FF) : Colors.white,
+                                  borderRadius: const BorderRadius.only(
+                                    topRight: Radius.circular(12),
+                                    bottomRight: Radius.circular(12),
+                                  ),
+                                  border: Border.all(
+                                    color: const Color(0xFF0B84FF),
+                                  ),
+                                ),
+                                child: Text(
+                                  'History',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: _showHistory ? Colors.white : const Color(0xFF0B84FF),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Filter Tabs (only show for upcoming)
+                    if (!_showHistory)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildFilterTab("All"),
+                              _buildFilterTab("Pending"),
+                              _buildFilterTab("Requested"),
+                              _buildFilterTab("Accepted"),
+                              _buildFilterTab("Confirmed"),
+                              _buildFilterTab("In Progress"),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
 
-                      // Filter List based on selection
-                      final allBookings = snapshot.data ?? [];
-                      final filteredList = _selectedFilter == 'All'
-                          ? allBookings
-                          : allBookings
-                                .where((b) => b.status == _selectedFilter)
-                                .toList();
+              // Booking List Stream
+              StreamBuilder<List<Booking>>(
+                stream: _dbService.getSeekerBookings(currentUserId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SliverFillRemaining(
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0B84FF)),
+                        ),
+                      ),
+                    );
+                  }
 
-                      if (filteredList.isEmpty) {
-                        return Center(
+                  final allBookings = snapshot.data ?? [];
+                  
+                  // Separate upcoming and history
+                  final now = DateTime.now();
+                  final upcomingBookings = allBookings.where((b) {
+                    final bookingDateTime = DateTime(b.date.year, b.date.month, b.date.day);
+                    return bookingDateTime.isAfter(now.subtract(const Duration(days: 1))) &&
+                        b.status != 'Completed' &&
+                        b.status != 'Cancelled';
+                  }).toList();
+                  
+                  final historyBookings = allBookings.where((b) {
+                    final bookingDateTime = DateTime(b.date.year, b.date.month, b.date.day);
+                    return bookingDateTime.isBefore(now) ||
+                        b.status == 'Completed' ||
+                        b.status == 'Cancelled';
+                  }).toList();
+                  
+                  final displayList = _showHistory ? historyBookings : upcomingBookings;
+                  final filteredList = _showHistory
+                      ? displayList
+                      : (_selectedFilter == 'All'
+                          ? displayList
+                          : displayList.where((b) => b.status == _selectedFilter).toList());
+
+                  if (filteredList.isEmpty) {
+                    return SliverFillRemaining(
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 Icons.calendar_today_outlined,
-                                size: 48,
-                                color: Colors.grey[300],
+                                size: 64,
+                                color: Colors.grey[400],
                               ),
                               const SizedBox(height: 16),
-                              Text("No $_selectedFilter bookings found"),
+                              Text(
+                                "No $_selectedFilter bookings found",
+                                style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                              ),
                             ],
                           ),
-                        );
-                      }
+                        ),
+                      ),
+                    );
+                  }
 
-                      return ListView.builder(
-                        itemCount: filteredList.length,
-                        itemBuilder: (context, index) {
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
                           return _buildBookingCard(filteredList[index]);
                         },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+                        childCount: filteredList.length,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           );
         },
       ),
@@ -123,75 +273,80 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
       child: Container(
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0B84FF) : Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          title,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey[700],
-            fontWeight: FontWeight.w600,
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF0B84FF) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF0B84FF)
+                  : Colors.grey[300]!,
+              width: 1.5,
+            ),
           ),
-        ),
+          child: Text(
+            title,
+            style: TextStyle(
+              color: isSelected ? Colors.white : const Color(0xFF0B84FF),
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
       ),
     );
   }
 
   Widget _buildBookingCard(Booking booking) {
-    Color statusColor;
-    Color statusBgColor;
+    final statusColor = _getStatusColor(booking.status);
 
-    switch (booking.status) {
-      case 'Accepted':
-        statusColor = Colors.green;
-        statusBgColor = Colors.green.withOpacity(0.1);
-        break;
-      case 'Pending':
-        statusColor = const Color(0xFFFFC107);
-        statusBgColor = const Color(0xFFFFC107).withOpacity(0.1);
-        break;
-      case 'Declined':
-        statusColor = Colors.red;
-        statusBgColor = Colors.red.withOpacity(0.1);
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusBgColor = Colors.grey.withOpacity(0.1);
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BookingDetailsScreen(
+              booking: booking,
+              isProvider: false,
+            ),
           ),
-        ],
-      ),
-      child: Column(
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                booking.providerName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+              Expanded(
+                child: Text(
+                  booking.providerName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: statusBgColor,
-                  borderRadius: BorderRadius.circular(4),
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor.withOpacity(0.3)),
                 ),
                 child: Text(
                   booking.status,
@@ -204,21 +359,56 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            booking.serviceCategory,
-            style: const TextStyle(color: Colors.grey),
-          ),
           const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B84FF).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              booking.serviceCategory,
+              style: const TextStyle(
+                color: Color(0xFF0B84FF),
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           _buildInfoRow(
             Icons.calendar_today,
-            DateFormat('yyyy-MM-dd').format(booking.date),
+            DateFormat('MMMM dd, yyyy').format(booking.date),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           _buildInfoRow(Icons.access_time, booking.time),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           _buildInfoRow(Icons.location_on_outlined, booking.address),
+          if (booking.problemDescription.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.description, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      booking.problemDescription,
+                      style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
       ),
     );
   }
@@ -226,12 +416,19 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   Widget _buildInfoRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: Colors.grey[500]),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B84FF).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: const Color(0xFF0B84FF)),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             text,
-            style: TextStyle(color: Colors.grey[600], fontSize: 13),
+            style: const TextStyle(color: Colors.black87, fontSize: 14),
             overflow: TextOverflow.ellipsis,
           ),
         ),

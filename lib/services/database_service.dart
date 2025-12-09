@@ -89,6 +89,32 @@ class DatabaseService {
     await _db.ref('bookings/$bookingId').update({'status': newStatus});
   }
 
+  // 5a. Cancel Booking
+  Future<void> cancelBooking(String bookingId) async {
+    await _db.ref('bookings/$bookingId').update({'status': 'Cancelled'});
+  }
+
+  // 5b. Reschedule Booking
+  Future<void> rescheduleBooking(String bookingId, DateTime newDate, String newTime) async {
+    await _db.ref('bookings/$bookingId').update({
+      'date': newDate.toIso8601String(),
+      'time': newTime,
+      'status': 'Pending', // Reset to pending when rescheduled
+    });
+  }
+
+  // 5c. Get Single Booking
+  Future<Booking?> getBooking(String bookingId) async {
+    final snapshot = await _db.ref('bookings/$bookingId').get();
+    if (snapshot.exists && snapshot.value != null) {
+      return Booking.fromMap(
+        snapshot.value as Map<dynamic, dynamic>,
+        bookingId,
+      );
+    }
+    return null;
+  }
+
   // 6. Update User Profile
   Future<void> updateUserProfile(UserModel user) async {
     await _db.ref('users/${user.id}').update(user.toMap());

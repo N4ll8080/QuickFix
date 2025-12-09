@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import '../screens/bookings/my_bookings_screen.dart';
 import '../screens/profile/service_seeker_profile_screen.dart';
+import '../screens/messages/messages_list_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
@@ -11,17 +12,15 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  // 1. Keep track of which tab is active
   int _selectedIndex = 0;
 
-  // 2. Define the screens that correspond to each tab
   final List<Widget> _screens = [
-    const HomeScreen(), // Index 0
-    const MyBookingsScreen(), // Index 1
-    const ServiceSeekerProfileScreen(), // Index 2 (Placeholder)
+    const HomeScreen(),
+    const MyBookingsScreen(),
+    const MessagesListScreen(),
+    const ServiceSeekerProfileScreen(),
   ];
 
-  // 3. Handle tab taps
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -31,12 +30,11 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 4. The body switches based on the index
+      backgroundColor: Colors.grey[50],
       body: _screens[_selectedIndex],
-
-      // 5. The Bottom Navigation Bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
+          color: Colors.white,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
@@ -47,14 +45,15 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: BottomNavigationBar(
           backgroundColor: Colors.white,
-          type: BottomNavigationBarType
-              .fixed, // Use 'fixed' if you have 3-4 items
+          type: BottomNavigationBarType.fixed,
           currentIndex: _selectedIndex,
-          selectedItemColor: const Color(0xFF0B84FF), // Your Brand Blue
-          unselectedItemColor: Colors.grey,
+          selectedItemColor: const Color(0xFF0B84FF),
+          unselectedItemColor: Colors.grey[600],
           showUnselectedLabels: true,
+          elevation: 0,
           onTap: _onItemTapped,
-          elevation: 0, // We added our own custom shadow above
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
@@ -64,7 +63,12 @@ class _MainScreenState extends State<MainScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.calendar_today_outlined),
               activeIcon: Icon(Icons.calendar_today),
-              label: 'My Bookings',
+              label: 'Bookings',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.message_outlined),
+              activeIcon: Icon(Icons.message),
+              label: 'Messages',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

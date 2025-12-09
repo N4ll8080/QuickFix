@@ -73,14 +73,14 @@ class _ServiceSeekerProfileScreenState
 
               await _dbService.updateUserProfile(updatedUser);
 
-              if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Profile updated successfully!'),
-                  ),
-                );
-              }
+              if (!mounted) return;
+              Navigator.pop(context);
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Profile updated successfully!'),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF0B84FF),
