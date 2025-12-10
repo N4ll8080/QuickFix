@@ -108,12 +108,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         }
 
-        return FutureBuilder<UserModel?>(
-          // Use a key to force rebuild when auth state changes
+        return StreamBuilder<UserModel?>(
           key: ValueKey(snapshot.data?.uid),
-          future: authService.getUserProfile(),
+          stream: authService.userProfileStream,
           builder: (context, profileSnapshot) {
-            // Show loading while fetching profile
             if (profileSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(
@@ -129,12 +127,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
               );
             }
 
-            // Handle errors with better UX
             if (profileSnapshot.hasError) {
               final error = profileSnapshot.error;
               final isTimeoutError =
                   error.toString().contains('TimeoutException') ||
-                  error.toString().contains('timeout');
+                      error.toString().contains('timeout');
 
               return Scaffold(
                 body: Center(
@@ -172,7 +169,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
                           children: [
                             ElevatedButton(
                               onPressed: () {
-                                // Try again by rebuilding
                                 setState(() {});
                               },
                               style: ElevatedButton.styleFrom(
@@ -192,7 +188,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
                               onPressed: () async {
                                 setState(() => _isLoggingOut = true);
                                 await authService.logout();
-                                // State will rebuild automatically via StreamBuilder
                               },
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
@@ -211,11 +206,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
               );
             }
 
-            // Handle successful profile fetch
             if (profileSnapshot.hasData && profileSnapshot.data != null) {
               final user = profileSnapshot.data!;
-
-              // Route to correct screen based on user type
               if (user.userType == 'provider') {
                 return const ProviderMainScreen();
               } else {
@@ -223,7 +215,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
               }
             }
 
-            // Fallback: Profile is null (shouldn't happen, but handle it)
             return Scaffold(
               body: Center(
                 child: Padding(

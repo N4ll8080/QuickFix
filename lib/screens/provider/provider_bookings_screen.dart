@@ -14,22 +14,22 @@ class ProviderBookingsScreen extends StatefulWidget {
 
 class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
   final DatabaseService _dbService = DatabaseService();
-  String _selectedFilter = 'All';
+  String _selectedFilter = 'Requests';
 
   Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Accepted':
-      case 'Confirmed':
+    switch (status.toLowerCase()) {
+      case 'accepted':
+      case 'confirmed':
         return Colors.green;
-      case 'Pending':
-      case 'Requested':
+      case 'pending':
+      case 'requested':
         return const Color(0xFFFFC107);
-      case 'Declined':
-      case 'Cancelled':
+      case 'declined':
+      case 'cancelled':
         return Colors.red;
-      case 'In Progress':
+      case 'in progress':
         return const Color(0xFF0B84FF);
-      case 'Completed':
+      case 'completed':
         return Colors.green;
       default:
         return Colors.grey;
@@ -38,7 +38,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
 
   Future<void> _markAsComplete(String bookingId) async {
     try {
-      await _dbService.updateBookingStatus(bookingId, 'Completed');
+      await _dbService.updateBookingStatus(bookingId, 'completed');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -119,13 +119,9 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildFilterTab("All"),
-                        _buildFilterTab("Pending"),
-                        _buildFilterTab("Accepted"),
-                        _buildFilterTab("Confirmed"),
-                        _buildFilterTab("In Progress"),
-                        _buildFilterTab("Completed"),
-                        _buildFilterTab("Cancelled"),
+                        _buildFilterTab("Requests"),
+                        _buildFilterTab("Accepted Jobs"),
+                        _buildFilterTab("Completed Jobs"),
                       ],
                     ),
                   ),
@@ -147,9 +143,17 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                   }
 
                   final allBookings = snapshot.data ?? [];
-                  final filteredList = _selectedFilter == 'All'
-                      ? allBookings
-                      : allBookings.where((b) => b.status == _selectedFilter).toList();
+                  List<Booking> filteredList;
+                  if (_selectedFilter == 'Requests') {
+                    filteredList =
+                        allBookings.where((b) => b.status == 'pending').toList();
+                  } else if (_selectedFilter == 'Accepted Jobs') {
+                    filteredList =
+                        allBookings.where((b) => b.status == 'accepted').toList();
+                  } else {
+                    filteredList =
+                        allBookings.where((b) => b.status == 'completed').toList();
+                  }
 
                   if (filteredList.isEmpty) {
                     return SliverFillRemaining(
@@ -268,15 +272,17 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Customer Booking',
+                        booking.seekerName,
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
+                          fontSize: 14,
+                          color: Colors.grey[700],
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        booking.serviceCategory,
+                        booking.serviceName.isNotEmpty
+                            ? booking.serviceName
+                            : booking.serviceCategory,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
@@ -333,7 +339,56 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                 ),
               ),
             ],
-            if (booking.status == 'Confirmed' || booking.status == 'In Progress') ...[
+            if (booking.status == 'pending') ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () =>
+                          _dbService.updateBookingStatus(booking.id, 'declined'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Decline',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () =>
+                          _dbService.updateBookingStatus(booking.id, 'accepted'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Accept',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (booking.status == 'accepted') ...[
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,

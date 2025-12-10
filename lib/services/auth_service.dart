@@ -7,7 +7,10 @@ import '../models/user_model.dart';
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
-  AuthService._internal();
+  AuthService._internal() {
+    _startCacheValidator();
+    _listenToAuthState();
+  }
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _db = FirebaseDatabase.instanceFor(
@@ -19,13 +22,121 @@ class AuthService {
   // Cache to prevent multiple simultaneous profile fetches
   UserModel? _cachedProfile;
   String? _cachedUid;
+  DateTime? _cacheTimestamp;
+  final Duration _cacheTtl = const Duration(minutes: 5);
+
+  final Map<String, FutureOr<void> Function()> _cleanupRegistry = {};
+
+  Stream<UserModel?>? _userProfileStream;
+  StreamSubscription<User?>? _authStateSub;
+  StreamSubscription<User?>? _profileAuthSub;
+  StreamSubscription<DatabaseEvent>? _profileSub;
+  Timer? _cacheValidationTimer;
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+  User? get currentUser => _auth.currentUser;
 
   // Clear cache on logout
   void _clearCache() {
     _cachedProfile = null;
     _cachedUid = null;
+    _cacheTimestamp = null;
+  }
+
+  void registerCleanup(String name, FutureOr<void> Function() callback) {
+    _cleanupRegistry[name] = callback;
+  }
+
+  void unregisterCleanup(String name) {
+    _cleanupRegistry.remove(name);
+  }
+
+  Stream<UserModel?> get userProfileStream {
+    _userProfileStream ??= _buildUserProfileStream();
+    return _userProfileStream!;
+  }
+
+  Stream<UserModel?> _buildUserProfileStream() {
+    final controller = StreamController<UserModel?>.broadcast();
+    controller.onListen = () {
+      _profileAuthSub ??= _auth.authStateChanges().listen(
+        (user) async {
+          await _profileSub?.cancel();
+          _profileSub = null;
+
+          if (user == null) {
+            _clearCache();
+            controller.add(null);
+            return;
+          }
+
+          final uid = user.uid;
+          _cachedUid = uid;
+
+          final ref = _db.ref('users/$uid');
+          _profileSub = ref.onValue.listen((event) {
+            if (!event.snapshot.exists || event.snapshot.value == null) {
+              _clearCache();
+              controller.add(null);
+              return;
+            }
+
+            final profile = UserModel.fromMap(
+              event.snapshot.value as Map<dynamic, dynamic>,
+              uid,
+            );
+
+            _cachedProfile = profile;
+            _cachedUid = uid;
+            _cacheTimestamp = DateTime.now();
+            controller.add(profile);
+          }, onError: controller.addError);
+        },
+        onError: controller.addError,
+        onDone: () => controller.close(),
+      );
+    };
+
+    controller.onCancel = () async {
+      await _profileAuthSub?.cancel();
+      _profileAuthSub = null;
+      await _profileSub?.cancel();
+      _profileSub = null;
+    };
+
+    return controller.stream;
+  }
+
+  void _listenToAuthState() {
+    _authStateSub ??= _auth.authStateChanges().listen((user) {
+      if (user == null) {
+        _clearCache();
+        return;
+      }
+
+      if (_cachedUid != null && _cachedUid != user.uid) {
+        _clearCache();
+      }
+    });
+  }
+
+  void _startCacheValidator() {
+    _cacheValidationTimer ??= Timer.periodic(
+      const Duration(minutes: 5),
+      (_) => _validateCache(),
+    );
+  }
+
+  void _validateCache() {
+    final uid = _auth.currentUser?.uid;
+    final isStaleUser = _cachedUid != null && _cachedUid != uid;
+    final isExpired =
+        _cacheTimestamp != null &&
+        DateTime.now().difference(_cacheTimestamp!) > _cacheTtl;
+
+    if (uid == null || isStaleUser || isExpired) {
+      _clearCache();
+    }
   }
 
   Future<UserModel?> getUserProfile({int retryCount = 2}) async {
@@ -35,8 +146,13 @@ class AuthService {
       return null;
     }
 
-    // Return cached profile if same user
-    if (_cachedUid == user.uid && _cachedProfile != null) {
+    final now = DateTime.now();
+    final cacheFresh =
+        _cacheTimestamp != null &&
+        now.difference(_cacheTimestamp!) <= _cacheTtl &&
+        _cachedUid == user.uid;
+
+    if (cacheFresh && _cachedProfile != null) {
       return _cachedProfile;
     }
 
@@ -63,6 +179,7 @@ class AuthService {
           // Cache the profile
           _cachedProfile = profile;
           _cachedUid = user.uid;
+          _cacheTimestamp = DateTime.now();
 
           return profile;
         }
@@ -234,6 +351,13 @@ class AuthService {
 
   Future<void> logout() async {
     _clearCache();
+    for (final entry in _cleanupRegistry.entries) {
+      try {
+        await entry.value();
+      } catch (_) {
+        // Best-effort cleanup; continue
+      }
+    }
     await _auth.signOut();
   }
 }

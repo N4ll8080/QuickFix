@@ -21,15 +21,17 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
   final DatabaseService _dbService = DatabaseService();
 
   bool _canCancel() {
-    return widget.booking.status != 'Completed' &&
-        widget.booking.status != 'Cancelled' &&
-        widget.booking.status != 'In Progress';
+    final status = widget.booking.status.toLowerCase();
+    return status != 'completed' &&
+        status != 'cancelled' &&
+        status != 'in progress';
   }
 
   bool _canReschedule() {
-    return widget.booking.status != 'Completed' &&
-        widget.booking.status != 'Cancelled' &&
-        widget.booking.status != 'In Progress';
+    final status = widget.booking.status.toLowerCase();
+    return status != 'completed' &&
+        status != 'cancelled' &&
+        status != 'in progress';
   }
 
   Future<void> _cancelBooking() async {
@@ -45,10 +47,11 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text(
+              'Yes, Cancel',
+              style: TextStyle(color: Colors.white),
             ),
-            child: const Text('Yes, Cancel', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -97,19 +100,19 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
   }
 
   Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Accepted':
-      case 'Confirmed':
+    switch (status.toLowerCase()) {
+      case 'accepted':
+      case 'confirmed':
         return Colors.green;
-      case 'Pending':
-      case 'Requested':
+      case 'pending':
+      case 'requested':
         return const Color(0xFFFFC107);
-      case 'Declined':
-      case 'Cancelled':
+      case 'declined':
+      case 'cancelled':
         return Colors.red;
-      case 'In Progress':
+      case 'in progress':
         return const Color(0xFF0B84FF);
-      case 'Completed':
+      case 'completed':
         return Colors.green;
       default:
         return Colors.grey;
@@ -167,12 +170,19 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: _getStatusColor(widget.booking.status).withOpacity(0.1),
+                          color: _getStatusColor(
+                            widget.booking.status,
+                          ).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: _getStatusColor(widget.booking.status).withOpacity(0.3),
+                            color: _getStatusColor(
+                              widget.booking.status,
+                            ).withOpacity(0.3),
                           ),
                         ),
                         child: Text(
@@ -186,7 +196,8 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
                       ),
                     ],
                   ),
-                  if (widget.booking.status == 'Pending' || widget.booking.status == 'Requested')
+                  if (widget.booking.status == 'Pending' ||
+                      widget.booking.status == 'Requested')
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -246,7 +257,9 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          widget.isProvider ? 'Customer Name' : widget.booking.providerName,
+                          widget.isProvider
+                              ? 'Customer Name'
+                              : widget.booking.providerName,
                           style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -296,7 +309,9 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
                   _buildDetailRow(
                     Icons.calendar_today,
                     'Date',
-                    DateFormat('MMMM dd, yyyy').format(widget.booking.date),
+                    DateFormat(
+                      'MMMM dd, yyyy',
+                    ).format(widget.booking.date.toLocal()),
                   ),
                   const SizedBox(height: 16),
                   _buildDetailRow(
@@ -386,7 +401,8 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
                         ),
                       ),
                     ),
-                  if (_canReschedule() && _canCancel()) const SizedBox(width: 12),
+                  if (_canReschedule() && _canCancel())
+                    const SizedBox(width: 12),
                   if (_canCancel())
                     Expanded(
                       child: ElevatedButton(
@@ -418,7 +434,12 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
     );
   }
 
-  Widget _buildDetailRow(IconData icon, String label, String value, {bool isHighlight = false}) {
+  Widget _buildDetailRow(
+    IconData icon,
+    String label,
+    String value, {
+    bool isHighlight = false,
+  }) {
     return Row(
       children: [
         Container(
@@ -436,10 +457,7 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
               const SizedBox(height: 4),
               Text(
@@ -464,7 +482,8 @@ class RescheduleBookingScreen extends StatefulWidget {
   const RescheduleBookingScreen({super.key, required this.booking});
 
   @override
-  State<RescheduleBookingScreen> createState() => _RescheduleBookingScreenState();
+  State<RescheduleBookingScreen> createState() =>
+      _RescheduleBookingScreenState();
 }
 
 class _RescheduleBookingScreenState extends State<RescheduleBookingScreen> {
@@ -517,9 +536,9 @@ class _RescheduleBookingScreenState extends State<RescheduleBookingScreen> {
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error rescheduling: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error rescheduling: $e')));
     }
   }
 
@@ -557,14 +576,11 @@ class _RescheduleBookingScreenState extends State<RescheduleBookingScreen> {
                 children: [
                   const Text(
                     'Current Schedule',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${DateFormat('MMMM dd, yyyy').format(widget.booking.date)} at ${widget.booking.time}',
+                    '${DateFormat('MMMM dd, yyyy').format(widget.booking.date.toLocal())} at ${widget.booking.time}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -604,11 +620,17 @@ class _RescheduleBookingScreenState extends State<RescheduleBookingScreen> {
                           : DateFormat('MMMM dd, yyyy').format(_selectedDate!),
                       style: TextStyle(
                         fontSize: 16,
-                        color: _selectedDate == null ? Colors.grey[600] : Colors.black87,
+                        color: _selectedDate == null
+                            ? Colors.grey[600]
+                            : Colors.black87,
                       ),
                     ),
                     const Spacer(),
-                    const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.grey,
+                    ),
                   ],
                 ),
               ),
@@ -633,9 +655,14 @@ class _RescheduleBookingScreenState extends State<RescheduleBookingScreen> {
                 return InkWell(
                   onTap: () => setState(() => _selectedTime = time),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF0B84FF) : Colors.white,
+                      color: isSelected
+                          ? const Color(0xFF0B84FF)
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isSelected
@@ -647,7 +674,9 @@ class _RescheduleBookingScreenState extends State<RescheduleBookingScreen> {
                       time,
                       style: TextStyle(
                         color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                   ),
@@ -685,4 +714,3 @@ class _RescheduleBookingScreenState extends State<RescheduleBookingScreen> {
     );
   }
 }
-

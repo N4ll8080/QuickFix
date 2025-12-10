@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../models/user_model.dart';
+import '../../core/safety_utils.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
 
@@ -34,7 +35,9 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
   Future<void> _loadExistingBookings() async {
     setState(() => _isLoadingBookings = true);
     try {
-      final bookings = await _dbService.getProviderBookings(widget.provider.id).first;
+      final bookings = await _dbService
+          .getProviderBookings(widget.provider.id)
+          .first;
       setState(() {
         _existingBookings = bookings;
         _isLoadingBookings = false;
@@ -64,10 +67,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
 
     final startTimeStr = availability['startTime'] ?? '9:00';
     final endTimeStr = availability['endTime'] ?? '17:00';
-    
+
     final startParts = startTimeStr.split(':');
     final endParts = endTimeStr.split(':');
-    
+
     final startHour = int.parse(startParts[0]);
     final startMinute = startParts.length > 1 ? int.parse(startParts[1]) : 0;
     final endHour = int.parse(endParts[0]);
@@ -80,8 +83,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     while (currentHour < endHour ||
         (currentHour == endHour && currentMinute < endMinute)) {
       final time = TimeOfDay(hour: currentHour, minute: currentMinute);
-      slots.add(time.format(context));
-      
+      slots.add(
+        time.format(context),
+      ); // keeps UI locale (12h); normalized on save
+
       currentMinute += 60; // Add 1 hour
       if (currentMinute >= 60) {
         currentMinute = 0;
@@ -101,13 +106,13 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       final unavailableDates = (availability['unavailableDates'] as List)
           .map((d) => DateTime.parse(d))
           .toList();
-      
+
       final selectedDateOnly = DateTime(
         _selectedDate!.year,
         _selectedDate!.month,
         _selectedDate!.day,
       );
-      
+
       for (final unavailableDate in unavailableDates) {
         final unavailableDateOnly = DateTime(
           unavailableDate.year,
@@ -137,12 +142,13 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     );
 
     for (final booking in _existingBookings) {
+      final bookingDate = booking.date.toLocal();
       final bookingDateOnly = DateTime(
-        booking.date.year,
-        booking.date.month,
-        booking.date.day,
+        bookingDate.year,
+        bookingDate.month,
+        bookingDate.day,
       );
-      
+
       if (selectedDateOnly == bookingDateOnly &&
           booking.time == timeSlot &&
           booking.status != 'Cancelled' &&
@@ -156,23 +162,23 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
 
   String? _getSlotTooltip(String timeSlot) {
     if (_selectedDate == null) return null;
-    
+
     if (!_isSlotAvailable(timeSlot)) {
       // Check why it's unavailable
       final availability = widget.provider.availability;
-      
+
       // Check if date is unavailable
       if (availability != null && availability['unavailableDates'] != null) {
         final unavailableDates = (availability['unavailableDates'] as List)
             .map((d) => DateTime.parse(d))
             .toList();
-        
+
         final selectedDateOnly = DateTime(
           _selectedDate!.year,
           _selectedDate!.month,
           _selectedDate!.day,
         );
-        
+
         for (final unavailableDate in unavailableDates) {
           final unavailableDateOnly = DateTime(
             unavailableDate.year,
@@ -207,7 +213,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
           booking.date.month,
           booking.date.day,
         );
-        
+
         if (selectedDateOnly == bookingDateOnly &&
             booking.time == timeSlot &&
             booking.status != 'Cancelled' &&
@@ -216,7 +222,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -249,7 +255,9 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     if (!_isSlotAvailable(_selectedTime!)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('This time slot is not available. Please select another time.'),
+          content: Text(
+            'This time slot is not available. Please select another time.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -265,14 +273,19 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     try {
       final booking = Booking(
         id: '',
+        bookingId: '',
         seekerId: currentUser.uid,
+        seekerName: currentUserModel.name,
         providerId: widget.provider.id,
         providerName: widget.provider.name,
+        serviceId: widget.provider.category ?? 'general',
+        serviceName: widget.provider.category ?? 'General Service',
         serviceCategory: widget.provider.category ?? 'General',
-        status: 'Pending',
+        status: 'pending',
         date: _selectedDate!,
         time: _selectedTime!,
         address: _addressController.text.trim(),
+        notes: _problemController.text.trim(),
         problemDescription: _problemController.text.trim(),
         price: widget.provider.rate ?? 0.0,
       );
@@ -349,11 +362,12 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                     CircleAvatar(
                       radius: 30,
                       backgroundColor: Colors.grey[200],
-                      child: widget.provider.imageUrl != null &&
+                      child:
+                          widget.provider.imageUrl != null &&
                               widget.provider.imageUrl!.isNotEmpty
                           ? ClipOval(
                               child: Image.network(
-                                widget.provider.imageUrl!,
+                                safePhotoUrl(widget.provider.imageUrl),
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) {
                                   return const Icon(Icons.person, size: 30);
@@ -377,7 +391,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                           const SizedBox(height: 4),
                           Text(
                             widget.provider.category ?? 'Service Provider',
-                            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -417,19 +434,30 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today, color: Color(0xFF0B84FF)),
+                      const Icon(
+                        Icons.calendar_today,
+                        color: Color(0xFF0B84FF),
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         _selectedDate == null
                             ? 'Select a date'
-                            : DateFormat('MMMM dd, yyyy').format(_selectedDate!),
+                            : DateFormat(
+                                'MMMM dd, yyyy',
+                              ).format(_selectedDate!),
                         style: TextStyle(
                           fontSize: 16,
-                          color: _selectedDate == null ? Colors.grey[600] : Colors.black87,
+                          color: _selectedDate == null
+                              ? Colors.grey[600]
+                              : Colors.black87,
                         ),
                       ),
                       const Spacer(),
-                      const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
                     ],
                   ),
                 ),
@@ -464,7 +492,9 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                       final tooltip = _getSlotTooltip(time);
 
                       return Tooltip(
-                        message: tooltip ?? (isAvailable ? 'Available' : 'Not Available'),
+                        message:
+                            tooltip ??
+                            (isAvailable ? 'Available' : 'Not Available'),
                         child: InkWell(
                           onTap: isAvailable
                               ? () {
@@ -473,23 +503,32 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                               : () {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(tooltip ?? 'This time is not available'),
+                                      content: Text(
+                                        tooltip ?? 'This time is not available',
+                                      ),
                                       backgroundColor: Colors.red,
                                       duration: const Duration(seconds: 2),
                                     ),
                                   );
                                 },
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? const Color(0xFF0B84FF)
-                                  : (isAvailable ? Colors.white : Colors.grey[300]),
+                                  : (isAvailable
+                                        ? Colors.white
+                                        : Colors.grey[300]),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: isSelected
                                     ? const Color(0xFF0B84FF)
-                                    : (isAvailable ? Colors.grey[300]! : Colors.red[300]!),
+                                    : (isAvailable
+                                          ? Colors.grey[300]!
+                                          : Colors.red[300]!),
                                 width: isSelected ? 2 : 1,
                               ),
                             ),
@@ -498,9 +537,15 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                               style: TextStyle(
                                 color: isSelected
                                     ? Colors.white
-                                    : (isAvailable ? Colors.black87 : Colors.grey[600]),
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                decoration: isAvailable ? null : TextDecoration.lineThrough,
+                                    : (isAvailable
+                                          ? Colors.black87
+                                          : Colors.grey[600]),
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                decoration: isAvailable
+                                    ? null
+                                    : TextDecoration.lineThrough,
                               ),
                             ),
                           ),
@@ -537,7 +582,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0B84FF), width: 2),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF0B84FF),
+                      width: 2,
+                    ),
                   ),
                 ),
                 maxLines: 3,
@@ -576,7 +624,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF0B84FF), width: 2),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF0B84FF),
+                      width: 2,
+                    ),
                   ),
                 ),
                 maxLines: 5,

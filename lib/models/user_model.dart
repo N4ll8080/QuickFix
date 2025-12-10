@@ -1,4 +1,7 @@
-// lib/models/user_model.dart
+import 'package:firebase_database/firebase_database.dart';
+
+import '../core/safety_utils.dart';
+import '../core/time_utils.dart';
 
 class UserModel {
   final String id;
@@ -15,7 +18,8 @@ class UserModel {
   final double rating; // Added for UI display
   final int reviewCount; // Added for UI display
   final bool isAvailable; // Added for UI display
-  final Map<String, dynamic>? availability; // Working days, times, unavailable dates
+  final Map<String, dynamic>?
+  availability; // Working days, times, unavailable dates
 
   UserModel({
     required this.id,
@@ -37,7 +41,7 @@ class UserModel {
     return UserModel(
       id: id,
       email: map['email'] ?? '',
-      name: map['name'] ?? '',
+      name: map['name'] ?? 'Unknown Provider',
       phone: map['phone'] ?? '',
       userType: map['userType'] ?? 'seeker',
       category: map['category'],
@@ -45,7 +49,7 @@ class UserModel {
           ? double.tryParse(map['rate'].toString())
           : null,
       about: map['about'],
-      imageUrl: map['imageUrl'],
+      imageUrl: validatedUrl(map['imageUrl'] as String?) ?? kFallbackPhoto,
       rating: map['rating'] != null
           ? double.tryParse(map['rating'].toString()) ?? 0.0
           : 0.0,
@@ -77,61 +81,104 @@ class UserModel {
 
 class Booking {
   final String id;
+  final String bookingId;
   final String seekerId;
+  final String seekerName;
   final String providerId;
   final String providerName;
+  final String serviceId;
+  final String serviceName;
   final String serviceCategory;
   final String status;
   final DateTime date;
   final String time;
   final String address;
+  final String notes;
   final String problemDescription;
-  final double price; // <--- NEW FIELD
+  final double price; // stored as snapshot; derived from cents if present
 
   Booking({
     required this.id,
+    required this.bookingId,
     required this.seekerId,
+    required this.seekerName,
     required this.providerId,
     required this.providerName,
+    required this.serviceId,
+    required this.serviceName,
     required this.serviceCategory,
     required this.status,
     required this.date,
     required this.time,
     required this.address,
+    required this.notes,
     required this.problemDescription,
     required this.price, // <--- Add to constructor
   });
 
   Map<String, dynamic> toMap() {
+    final slotDateKey = dateKeyUtc(date);
+    final timeKey = normalizeTimeKey(time);
+    final slotUtc = combineDateAndTimeUtc(date, time);
     return {
+      'bookingId': bookingId,
       'seekerId': seekerId,
+      'seekerName': seekerName,
       'providerId': providerId,
       'providerName': providerName,
+      'serviceId': serviceId,
+      'serviceName': serviceName,
       'serviceCategory': serviceCategory,
+      'scheduleDate': slotDateKey,
+      'scheduleTime': time,
+      'slotDate': slotDateKey,
+      'slotTime': timeKey,
+      'slotUtc': slotUtc.toIso8601String(),
       'status': status,
-      'date': date.toIso8601String(),
-      'time': time,
       'address': address,
+      'notes': notes,
       'problemDescription': problemDescription,
-      'price': price, // <--- Add to map
+      'priceCents': (price * 100).round(),
+      'createdAt': ServerValue.timestamp,
     };
   }
 
   factory Booking.fromMap(Map<dynamic, dynamic> map, String id) {
+    final rawTime = map['scheduleTime'] ?? map['slotTime'] ?? map['time'] ?? '';
+    final displayTime = isTimeKey(rawTime.toString())
+        ? displayTimeFromKey(rawTime.toString())
+        : rawTime.toString();
+    final slotIso = map['slotUtc'] ?? map['date'];
+    DateTime parsedDate;
+    try {
+      parsedDate = DateTime.parse(slotIso);
+    } catch (_) {
+      parsedDate = DateTime.now().toUtc();
+    }
+    final priceCents = map['priceCents'];
+    final priceDouble = map['price'] != null
+        ? double.tryParse(map['price'].toString())
+        : null;
+    final resolvedPrice = priceCents != null
+        ? (int.tryParse(priceCents.toString()) ?? 0) / 100
+        : (priceDouble ?? 0.0);
     return Booking(
       id: id,
+      bookingId: map['bookingId'] ?? id,
       seekerId: map['seekerId'] ?? '',
+      seekerName: map['seekerName'] ?? 'Customer',
       providerId: map['providerId'] ?? '',
-      providerName: map['providerName'] ?? '',
+      providerName: map['providerName'] ?? 'Unavailable Provider',
+      serviceId: map['serviceId'] ?? '',
+      serviceName: map['serviceName'] ?? map['serviceCategory'] ?? '',
       serviceCategory: map['serviceCategory'] ?? '',
-      status: map['status'] ?? 'Pending',
-      date: DateTime.parse(map['date']),
-      time: map['time'] ?? '',
+      status: (map['status'] ?? 'pending').toString().toLowerCase(),
+      date: parsedDate.toUtc(),
+      time: displayTime,
       address: map['address'] ?? '',
+      notes: map['notes'] ?? map['problemDescription'] ?? '',
       problemDescription: map['problemDescription'] ?? '',
-      price: map['price'] != null
-          ? double.tryParse(map['price'].toString()) ?? 0.0
-          : 0.0, // <--- Add to factory
+      price: resolvedPrice,
     );
   }
 }
