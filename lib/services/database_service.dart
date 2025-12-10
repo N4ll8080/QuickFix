@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:intl/intl.dart';
 import '../models/user_model.dart';
 
 class DatabaseService {
@@ -35,10 +36,33 @@ class DatabaseService {
         });
   }
 
-  // 2. Create a Booking
+  String _slotPath(String providerId, DateTime date, String time) {
+    final dateKey = DateFormat('yyyy-MM-dd').format(date);
+    final timeKey = time.replaceAll(':', '-').replaceAll(' ', '');
+    return 'booking_slots/$providerId/$dateKey/$timeKey';
+  }
+
+  // 2. Create a Booking with slot lock to prevent double booking
   Future<void> createBooking(Booking booking) async {
-    final newBookingRef = _db.ref('bookings').push();
-    await newBookingRef.set(booking.toMap());
+    final bookingRef = _db.ref('bookings').push();
+    final slotRef = _db.ref(_slotPath(booking.providerId, booking.date, booking.time));
+
+    // Lock the slot atomically
+    final transactionResult = await slotRef.runTransaction((currentData) {
+      if (currentData != null) {
+        return Transaction.abort();
+      }
+      return Transaction.success({'bookingId': bookingRef.key});
+    });
+
+    if (!transactionResult.committed) {
+      throw Exception('Time slot is already booked. Please choose another.');
+    }
+
+    await bookingRef.set({
+      ...booking.toMap(),
+      'id': bookingRef.key,
+    });
   }
 
   // 3. Get Bookings for a specific Provider
@@ -89,13 +113,38 @@ class DatabaseService {
     await _db.ref('bookings/$bookingId').update({'status': newStatus});
   }
 
-  // 5a. Cancel Booking
+  // 5a. Cancel Booking (release slot)
   Future<void> cancelBooking(String bookingId) async {
+    final booking = await getBooking(bookingId);
+    if (booking != null) {
+      final slotRef = _db.ref(_slotPath(booking.providerId, booking.date, booking.time));
+      await slotRef.remove();
+    }
     await _db.ref('bookings/$bookingId').update({'status': 'Cancelled'});
   }
 
-  // 5b. Reschedule Booking
+  // 5b. Reschedule Booking with slot lock
   Future<void> rescheduleBooking(String bookingId, DateTime newDate, String newTime) async {
+    final booking = await getBooking(bookingId);
+    if (booking == null) return;
+
+    // Release old slot
+    final oldSlotRef = _db.ref(_slotPath(booking.providerId, booking.date, booking.time));
+    await oldSlotRef.remove();
+
+    // Lock new slot
+    final newSlotRef = _db.ref(_slotPath(booking.providerId, newDate, newTime));
+    final transactionResult = await newSlotRef.runTransaction((currentData) {
+      if (currentData != null) {
+        return Transaction.abort();
+      }
+      return Transaction.success({'bookingId': bookingId});
+    });
+
+    if (!transactionResult.committed) {
+      throw Exception('New time slot is already booked. Please choose another.');
+    }
+
     await _db.ref('bookings/$bookingId').update({
       'date': newDate.toIso8601String(),
       'time': newTime,

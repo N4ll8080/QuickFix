@@ -22,7 +22,14 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
 
   Future<void> _openChat() async {
     final currentUser = _auth.currentUser;
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Login required to send messages')),
+        );
+      }
+      return;
+    }
 
     try {
       final currentUserModel = await _authService.getUserProfile();
@@ -49,6 +56,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
           ),
         ),
       );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Messaging started')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,6 +68,13 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   }
 
   void _bookAppointment() {
+    if (_auth.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login required to book an appointment')),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -329,6 +346,45 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                           _buildServiceTag("Consultation"),
                           _buildServiceTag("Emergency Service"),
                         ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Intro prompt card
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Provider Intro",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "Hello! I’m ${widget.provider.name}, a ${widget.provider.category ?? 'service provider'} with strong experience. I offer top services like ${widget.provider.category ?? 'home services'} and related tasks, available in your area. I prioritize quality, reliability, and affordability. Contact me for bookings and custom requests.",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black87,
+                          height: 1.5,
+                        ),
                       ),
                     ],
                   ),

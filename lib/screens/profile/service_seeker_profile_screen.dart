@@ -20,6 +20,7 @@ class _ServiceSeekerProfileScreenState
   Future<void> _showEditProfileDialog(UserModel user) async {
     final nameController = TextEditingController(text: user.name);
     final phoneController = TextEditingController(text: user.phone);
+    final imageController = TextEditingController(text: user.imageUrl ?? '');
 
     await showDialog(
       context: context,
@@ -45,6 +46,16 @@ class _ServiceSeekerProfileScreenState
                 ),
                 keyboardType: TextInputType.phone,
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: imageController,
+                decoration: const InputDecoration(
+                  labelText: 'Profile Photo URL',
+                  border: OutlineInputBorder(),
+                  hintText: 'https://example.com/photo.jpg',
+                ),
+                keyboardType: TextInputType.url,
+              ),
             ],
           ),
         ),
@@ -62,7 +73,7 @@ class _ServiceSeekerProfileScreenState
                 name: nameController.text,
                 phone: phoneController.text,
                 userType: user.userType,
-                imageUrl: user.imageUrl,
+                imageUrl: imageController.text.isNotEmpty ? imageController.text : user.imageUrl,
                 category: user.category,
                 rate: user.rate,
                 about: user.about,

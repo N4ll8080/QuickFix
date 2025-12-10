@@ -23,6 +23,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   late TextEditingController _phoneController;
   late TextEditingController _rateController;
   late TextEditingController _aboutController;
+  late TextEditingController _imageController;
 
   // Availability
   Map<String, bool> _workingDays = {
@@ -62,6 +63,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
           text: userData.rate?.toString() ?? '',
         );
         _aboutController = TextEditingController(text: userData.about ?? '');
+        _imageController = TextEditingController(text: userData.imageUrl ?? '');
 
         // Load availability
         if (userData.availability != null) {
@@ -97,6 +99,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
         _phoneController = TextEditingController();
         _rateController = TextEditingController();
         _aboutController = TextEditingController();
+        _imageController = TextEditingController();
         _isLoading = false;
       });
     }
@@ -116,7 +119,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
       category: _currentUser!.category,
       rate: double.tryParse(_rateController.text),
       about: _aboutController.text,
-      imageUrl: _currentUser!.imageUrl,
+      imageUrl: _imageController.text.isNotEmpty ? _imageController.text : _currentUser!.imageUrl,
       rating: _currentUser!.rating,
       reviewCount: _currentUser!.reviewCount,
       isAvailable: _currentUser!.isAvailable,
@@ -132,6 +135,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
       await _dbService.updateUserProfile(updatedUser);
       if (mounted) {
         setState(() => _isEditMode = false);
+        _currentUser = updatedUser;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Profile Updated Successfully!"),
@@ -374,6 +378,17 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
+                            if (_isEditMode)
+                              TextField(
+                                controller: _imageController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Profile Photo URL',
+                                  border: OutlineInputBorder(),
+                                  hintText: 'https://example.com/photo.jpg',
+                                ),
+                                keyboardType: TextInputType.url,
+                              ),
+                            if (_isEditMode) const SizedBox(height: 12),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
