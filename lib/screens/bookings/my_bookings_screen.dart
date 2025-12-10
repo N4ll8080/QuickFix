@@ -20,15 +20,16 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     switch (status.toLowerCase()) {
       case 'accepted':
       case 'confirmed':
+      case 'in progress':
+      case 'rescheduled':
         return Colors.green;
       case 'pending':
       case 'requested':
+      case 'booked':
         return const Color(0xFFFFC107);
-      case 'declined':
       case 'cancelled':
+      case 'declined':
         return Colors.red;
-      case 'in progress':
-        return const Color(0xFF0B84FF);
       case 'completed':
         return Colors.green;
       default:
@@ -129,17 +130,27 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                   }
 
                   final allBookings = snapshot.data ?? [];
+                  final upcomingStatuses = {
+                    'accepted',
+                    'confirmed',
+                    'in progress',
+                    'rescheduled',
+                  };
+                  final pendingStatuses = {'pending', 'requested', 'booked'};
+                  final historyStatuses = {
+                    'completed',
+                    'cancelled',
+                    'declined',
+                  };
+
                   final upcomingBookings = allBookings
-                      .where((b) => b.status == 'accepted')
+                      .where((b) => upcomingStatuses.contains(b.status))
                       .toList();
                   final pendingBookings = allBookings
-                      .where((b) => b.status == 'pending')
+                      .where((b) => pendingStatuses.contains(b.status))
                       .toList();
                   final historyBookings = allBookings
-                      .where(
-                        (b) =>
-                            b.status == 'completed' || b.status == 'declined',
-                      )
+                      .where((b) => historyStatuses.contains(b.status))
                       .toList();
 
                   List<Booking> filteredList;

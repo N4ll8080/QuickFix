@@ -60,11 +60,13 @@ class BookingService {
           'serviceName': booking.serviceName,
           'serviceCategory': booking.serviceCategory,
           'scheduleDate': slotDateKey,
-          'scheduleTime': booking.time,
+          // Must match rules: HH-MM format
+          'scheduleTime': slotTimeKey,
           'slotDate': slotDateKey,
           'slotTime': slotTimeKey,
           'slotUtc': slotUtc.toIso8601String(),
-          'status': 'pending',
+          // Match Realtime Database rules expected casing
+          'status': 'Pending',
           'address': booking.address,
           'notes': booking.problemDescription,
           'problemDescription': booking.problemDescription,
@@ -105,7 +107,7 @@ class BookingService {
           return Transaction.success({'status': 'open'});
         });
       }
-      await _db.ref('bookings/$bookingId').update({'status': 'cancelled'});
+      await _db.ref('bookings/$bookingId').update({'status': 'Cancelled'});
     });
   }
 
@@ -203,13 +205,15 @@ class BookingService {
             'availability/$providerId/$newDateKey/$newTimeKey',
           );
           newTarget['status'] = 'booked';
-          newTarget['bookedAt'] = ServerValue.timestamp;
-
+          newTarget['lockOwner'] = lockId;
+          // CHANGED: Use String instead of ServerValue.timestamp
+          newTarget['bookedAt'] = DateTime.now().toUtc().toIso8601String();
           final bookingTarget = path('bookings/$bookingId');
           bookingTarget['slotDate'] = newDateKey;
           bookingTarget['slotTime'] = newTimeKey;
           bookingTarget['slotUtc'] = newSlotUtc.toIso8601String();
-          bookingTarget['status'] = 'pending';
+          // Keep booking in a pending state after reschedule
+          bookingTarget['status'] = 'Pending';
 
           return Transaction.success(root);
         });
@@ -246,9 +250,11 @@ class BookingService {
           lockedAt > 0 &&
           nowMs - lockedAt > _lockTtlMs;
 
-      if (lockExpired) {
+      // Ensure the node always has a status to satisfy RTDB validation rules.
+      if (status == null || lockExpired) {
         return Transaction.success({'status': 'open'});
       }
+
       return Transaction.success(data);
     });
   }
@@ -320,9 +326,11 @@ class BookingService {
 
       return Transaction.success({
         'status': 'booked',
+        'lockOwner': lockId, // Keeps the lock owner (Required by rules)
         'providerId': providerId,
         if (seekerId != null) 'seekerId': seekerId,
-        'bookedAt': ServerValue.timestamp,
+        // CHANGED: Use a String instead of ServerValue.timestamp
+        'bookedAt': DateTime.now().toUtc().toIso8601String(),
         if (priceCents != null) 'priceCents': priceCents,
       });
     });
