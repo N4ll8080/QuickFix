@@ -144,13 +144,13 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                   };
 
                   final upcomingBookings = allBookings
-                      .where((b) => upcomingStatuses.contains(b.status))
+                      .where((b) => upcomingStatuses.contains(b.status.toLowerCase()))
                       .toList();
                   final pendingBookings = allBookings
-                      .where((b) => pendingStatuses.contains(b.status))
+                      .where((b) => pendingStatuses.contains(b.status.toLowerCase()))
                       .toList();
                   final historyBookings = allBookings
-                      .where((b) => historyStatuses.contains(b.status))
+                      .where((b) => historyStatuses.contains(b.status.toLowerCase()))
                       .toList();
 
                   List<Booking> filteredList;

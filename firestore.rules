@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Chats collection
+    match /chats/{chatId} {
+      // Users can read chats where they are a participant
+      allow read: if request.auth != null && 
+        (resource.data.participant1Id == request.auth.uid || 
+         resource.data.participant2Id == request.auth.uid);
+      
+      // Users can create chats where they are a participant
+      allow create: if request.auth != null && 
+        (request.resource.data.participant1Id == request.auth.uid || 
+         request.resource.data.participant2Id == request.auth.uid);
+      
+      // Users can update chats where they are a participant
+      allow update: if request.auth != null && 
+        (resource.data.participant1Id == request.auth.uid || 
+         resource.data.participant2Id == request.auth.uid);
+      
+      // Messages subcollection
+      match /messages/{messageId} {
+        // Users can read messages in chats where they are a participant
+        allow read: if request.auth != null && 
+          (get(/databases/$(database)/documents/chats/$(chatId)).data.participant1Id == request.auth.uid || 
+           get(/databases/$(database)/documents/chats/$(chatId)).data.participant2Id == request.auth.uid);
+        
+        // Users can create messages in chats where they are a participant
+        allow create: if request.auth != null && 
+          request.resource.data.senderId == request.auth.uid &&
+          (get(/databases/$(database)/documents/chats/$(chatId)).data.participant1Id == request.auth.uid || 
+           get(/databases/$(database)/documents/chats/$(chatId)).data.participant2Id == request.auth.uid);
+        
+        // Users can update their own messages
+        allow update: if request.auth != null && 
+          resource.data.senderId == request.auth.uid;
+      }
+    }
+    
+    // Users collection - allow users to read their own data and update it
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+

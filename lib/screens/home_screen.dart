@@ -10,7 +10,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   late PageController _carouselController;
   int _currentCarouselIndex = 0;
   late AnimationController _carouselAnimationController;
@@ -20,25 +21,29 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     CarouselSlide(
       title: 'Expert Plumbing Services',
       subtitle: 'Fix leaks, install fixtures, and more',
-      imageUrl: 'https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=800',
+      imageUrl:
+          'https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=800',
       category: 'Plumbing',
     ),
     CarouselSlide(
       title: 'Professional Electrical Work',
       subtitle: 'Safe and reliable electrical solutions',
-      imageUrl: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=800',
+      imageUrl:
+          'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=800',
       category: 'Electrical',
     ),
     CarouselSlide(
       title: 'Spotless Home Cleaning',
       subtitle: 'Deep cleaning for your home',
-      imageUrl: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800',
+      imageUrl:
+          'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800',
       category: 'Home Cleaning',
     ),
     CarouselSlide(
       title: 'Appliance Repair Experts',
       subtitle: 'Get your appliances working like new',
-      imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
+      imageUrl:
+          'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
       category: 'Appliance Repair',
     ),
   ];
@@ -127,172 +132,190 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final carouselHeight = (screenHeight * 0.35).clamp(280.0, 320.0);
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Animated Carousel Section
-            SizedBox(
-              height: 350,
-              child: PageView.builder(
-                controller: _carouselController,
-                itemCount: carouselSlides.length,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentCarouselIndex = index;
-                  });
-                  _carouselAnimationController.reset();
-                },
-                itemBuilder: (context, index) {
-                  final slide = carouselSlides[index];
-                  return _buildCarouselSlide(slide);
-                },
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              // Animated Carousel Section
+              SizedBox(
+                height: carouselHeight,
+                child: PageView.builder(
+                  controller: _carouselController,
+                  itemCount: carouselSlides.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentCarouselIndex = index;
+                    });
+                    _carouselAnimationController.reset();
+                  },
+                  itemBuilder: (context, index) {
+                    final slide = carouselSlides[index];
+                    return _buildCarouselSlide(slide);
+                  },
+                ),
               ),
-            ),
 
-            // Carousel Indicators
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                carouselSlides.length,
-                (index) => Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _currentCarouselIndex == index
-                        ? const Color(0xFF0B84FF)
-                        : Colors.grey[300],
+              // Carousel Indicators
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  carouselSlides.length,
+                  (index) => Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _currentCarouselIndex == index
+                          ? const Color(0xFF0B84FF)
+                          : Colors.grey[300],
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 32),
+              const SizedBox(height: 32),
 
-            // Search Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.search, color: Color(0xFF0B84FF), size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search for a service…',
-                          hintStyle: TextStyle(color: Colors.grey[600], fontSize: 16),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                        style: const TextStyle(color: Colors.black87, fontSize: 16),
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
-            // Service Categories Grid
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.1,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                ),
-                itemCount: services.length,
-                itemBuilder: (context, index) {
-                  return _buildServiceCard(services[index]);
-                },
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
-            // Provider CTA Section
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Are you a service provider?',
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.search,
+                        color: Color(0xFF0B84FF),
+                        size: 24,
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Join QuickFix and grow your business.',
-                      style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _handleProviderLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0B84FF),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search for a service…',
+                            hintStyle: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 16,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
                           ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Login as Provider',
-                          style: TextStyle(
-                            color: Colors.white,
+                          style: const TextStyle(
+                            color: Colors.black87,
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+
+              const SizedBox(height: 32),
+
+              // Service Categories Grid
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 1.1,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: services.length,
+                  itemBuilder: (context, index) {
+                    return _buildServiceCard(services[index]);
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Provider CTA Section
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Are you a service provider?',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Join QuickFix and grow your business.',
+                        style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _handleProviderLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0B84FF),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Login as Provider',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -320,6 +343,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               child: Image.network(
                 slide.imageUrl,
                 fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
                     color: const Color(0xFF0B84FF),
@@ -401,14 +426,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ProviderListScreen(categoryName: slide.category),
+                          builder: (context) =>
+                              ProviderListScreen(categoryName: slide.category),
                         ),
                       );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: const Color(0xFF0B84FF),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -444,7 +473,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ProviderListScreen(categoryName: service.name),
+            builder: (context) =>
+                ProviderListScreen(categoryName: service.name),
           ),
         );
       },
@@ -471,11 +501,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 color: service.color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                service.icon,
-                size: 40,
-                color: service.color,
-              ),
+              child: Icon(service.icon, size: 40, color: service.color),
             ),
             const SizedBox(height: 12),
             Text(
@@ -490,10 +516,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             const SizedBox(height: 4),
             Text(
               service.description,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,

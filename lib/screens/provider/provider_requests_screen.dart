@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../../services/database_service.dart';
 import '../../models/user_model.dart';
-import '../../services/messaging_service.dart';
+import '../../services/messaging_service_firestore.dart';
 import '../../services/auth_service.dart';
 import '../messages/chat_screen.dart';
 import '../bookings/booking_details_screen.dart';
@@ -17,7 +17,8 @@ class ProviderRequestsScreen extends StatefulWidget {
 
 class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
   final DatabaseService _dbService = DatabaseService();
-  final MessagingService _messagingService = MessagingService();
+  final MessagingServiceFirestore _messagingService =
+      MessagingServiceFirestore();
   final AuthService _authService = AuthService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -29,7 +30,9 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Request $status"),
-            backgroundColor: status == 'Accepted' ? Colors.green : Colors.orange,
+            backgroundColor: status.toLowerCase() == 'accepted'
+                ? Colors.green
+                : Colors.orange,
           ),
         );
       }
@@ -42,7 +45,11 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
     }
   }
 
-  Future<void> _openChat(String seekerId, String seekerName, String? seekerImageUrl) async {
+  Future<void> _openChat(
+    String seekerId,
+    String seekerName,
+    String? seekerImageUrl,
+  ) async {
     final currentUser = _auth.currentUser;
     if (currentUser == null) return;
 
@@ -73,9 +80,9 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error opening chat: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error opening chat: $e')));
     }
   }
 
@@ -127,14 +134,18 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0B84FF)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF0B84FF),
+                    ),
                   ),
                 );
               }
 
-              // Filter only 'Pending' or 'Requested' requests
+              // Filter only 'Pending' or 'Requested' requests (case-insensitive)
               final requests = (snapshot.data ?? [])
-                  .where((b) => b.status == 'Pending' || b.status == 'Requested')
+                  .where(
+                    (b) => ['pending', 'requested'].contains(b.status.toLowerCase()),
+                  )
                   .toList();
 
               if (requests.isEmpty) {
@@ -148,11 +159,18 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                        Icon(
+                          Icons.inbox_outlined,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           "No pending requests",
-                          style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 16,
+                          ),
                         ),
                       ],
                     ),
@@ -201,7 +219,10 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFC107).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -247,7 +268,11 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
           const SizedBox(height: 16),
 
           // Details
-          _buildIconInfo(Icons.calendar_today, "Date", DateFormat('MMMM dd, yyyy').format(request.date)),
+          _buildIconInfo(
+            Icons.calendar_today,
+            "Date",
+            DateFormat('MMMM dd, yyyy').format(request.date),
+          ),
           const SizedBox(height: 12),
           _buildIconInfo(Icons.access_time, "Time", request.time),
           const SizedBox(height: 12),
@@ -257,7 +282,11 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
           // Problem Description
           const Text(
             "Problem Description:",
-            style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 8),
           Container(
@@ -303,7 +332,8 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _openChat(request.seekerId, 'Customer', null),
+                  onPressed: () =>
+                      _openChat(request.seekerId, 'Customer', null),
                   icon: const Icon(Icons.message, size: 18),
                   label: const Text("Message"),
                   style: OutlinedButton.styleFrom(
@@ -322,11 +352,14 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => _updateStatus(request.id, "Accepted"),
+                  onPressed: () => _updateStatus(request.id, "accepted"),
                   icon: const Icon(Icons.check, color: Colors.white, size: 20),
                   label: const Text(
                     "Accept",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
@@ -341,11 +374,14 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => _updateStatus(request.id, "Declined"),
+                  onPressed: () => _updateStatus(request.id, "declined"),
                   icon: const Icon(Icons.close, color: Colors.white, size: 20),
                   label: const Text(
                     "Decline",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
@@ -387,7 +423,10 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
               const SizedBox(height: 4),
               Text(
                 value,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../../services/database_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/storage_service.dart';
 import '../../models/user_model.dart';
 
 class ServiceSeekerProfileScreen extends StatefulWidget {
@@ -15,90 +18,188 @@ class ServiceSeekerProfileScreen extends StatefulWidget {
 class _ServiceSeekerProfileScreenState
     extends State<ServiceSeekerProfileScreen> {
   final DatabaseService _dbService = DatabaseService();
+  final StorageService _storageService = StorageService();
+  final ImagePicker _imagePicker = ImagePicker();
 
   // --- EDIT PROFILE DIALOG ---
   Future<void> _showEditProfileDialog(UserModel user) async {
     final nameController = TextEditingController(text: user.name);
     final phoneController = TextEditingController(text: user.phone);
-    final imageController = TextEditingController(text: user.imageUrl ?? '');
+    File? selectedImage;
+    String? imageUrl = user.imageUrl;
+    bool isUploading = false;
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Profile'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit Profile'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Profile Image Picker
+                GestureDetector(
+                  onTap: () async {
+                    final ImageSource? source = await showDialog<ImageSource>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Select Image Source'),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(context, ImageSource.gallery),
+                            child: const Text('Gallery'),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.pop(context, ImageSource.camera),
+                            child: const Text('Camera'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (source != null) {
+                      final XFile? pickedFile = await _imagePicker.pickImage(
+                        source: source,
+                      );
+                      if (pickedFile != null) {
+                        setDialogState(() {
+                          selectedImage = File(pickedFile.path);
+                        });
+                      }
+                    }
+                  },
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.grey[200],
+                        backgroundImage: selectedImage != null
+                            ? FileImage(selectedImage!)
+                            : (imageUrl != null && imageUrl!.isNotEmpty
+                                  ? NetworkImage(imageUrl!)
+                                  : null),
+                        child:
+                            selectedImage == null &&
+                                (imageUrl == null || imageUrl!.isEmpty)
+                            ? const Icon(
+                                Icons.person,
+                                size: 50,
+                                color: Colors.grey,
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0B84FF),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 8),
+                Text(
+                  'Tap to change photo',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
                 ),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: imageController,
-                decoration: const InputDecoration(
-                  labelText: 'Profile Photo URL',
-                  border: OutlineInputBorder(),
-                  hintText: 'https://example.com/photo.jpg',
+                const SizedBox(height: 24),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-                keyboardType: TextInputType.url,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              // Create updated user object (keeping existing fields)
-              final updatedUser = UserModel(
-                id: user.id,
-                email: user.email,
-                name: nameController.text,
-                phone: phoneController.text,
-                userType: user.userType,
-                imageUrl: imageController.text.isNotEmpty ? imageController.text : user.imageUrl,
-                category: user.category,
-                rate: user.rate,
-                about: user.about,
-                rating: user.rating,
-                reviewCount: user.reviewCount,
-                isAvailable: user.isAvailable,
-              );
-
-              await _dbService.updateUserProfile(updatedUser);
-
-              if (!mounted) return;
-              Navigator.pop(context);
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Profile updated successfully!'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0B84FF),
+                if (isUploading) ...[
+                  const SizedBox(height: 16),
+                  const Center(child: CircularProgressIndicator()),
+                ],
+              ],
             ),
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isUploading
+                  ? null
+                  : () async {
+                      setDialogState(() => isUploading = true);
+                      try {
+                        // Upload image if selected
+                        if (selectedImage != null) {
+                          imageUrl = await _storageService.uploadProfileImage(
+                            selectedImage!,
+                          );
+                        }
+
+                        // Create updated user object (keeping existing fields)
+                        final updatedUser = UserModel(
+                          id: user.id,
+                          email: user.email,
+                          name: nameController.text,
+                          phone: phoneController.text,
+                          userType: user.userType,
+                          imageUrl: imageUrl,
+                          category: user.category,
+                          rate: user.rate,
+                          about: user.about,
+                          rating: user.rating,
+                          reviewCount: user.reviewCount,
+                          isAvailable: user.isAvailable,
+                        );
+
+                        await _dbService.updateUserProfile(updatedUser);
+
+                        if (!mounted) return;
+                        Navigator.pop(context);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Profile updated successfully!'),
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        setDialogState(() => isUploading = false);
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0B84FF),
+              ),
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
     );
   }

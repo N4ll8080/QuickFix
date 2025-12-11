@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/user_model.dart';
 import '../messages/chat_screen.dart';
-import '../../services/messaging_service.dart';
+import '../../services/messaging_service_firestore.dart';
 import '../../services/auth_service.dart';
 import '../bookings/create_booking_screen.dart';
 
@@ -16,7 +16,8 @@ class ProviderProfileScreen extends StatefulWidget {
 }
 
 class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
-  final MessagingService _messagingService = MessagingService();
+  final MessagingServiceFirestore _messagingService =
+      MessagingServiceFirestore();
   final AuthService _authService = AuthService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -56,14 +57,14 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
           ),
         ),
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Messaging started')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Messaging started')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error opening chat: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error opening chat: $e')));
     }
   }
 
@@ -139,7 +140,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                           CircleAvatar(
                             radius: 50,
                             backgroundColor: Colors.grey[200],
-                            child: widget.provider.imageUrl != null &&
+                            child:
+                                widget.provider.imageUrl != null &&
                                     widget.provider.imageUrl!.isNotEmpty
                                 ? ClipOval(
                                     child: Image.network(
@@ -147,13 +149,14 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                                       width: 100,
                                       height: 100,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return const Icon(
-                                          Icons.person,
-                                          size: 50,
-                                          color: Colors.grey,
-                                        );
-                                      },
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                            return const Icon(
+                                              Icons.person,
+                                              size: 50,
+                                              color: Colors.grey,
+                                            );
+                                          },
                                     ),
                                   )
                                 : const Icon(
@@ -211,8 +214,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                                     index < widget.provider.rating.floor()
                                         ? Icons.star
                                         : (index < widget.provider.rating
-                                            ? Icons.star_half
-                                            : Icons.star_border),
+                                              ? Icons.star_half
+                                              : Icons.star_border),
                                     color: Colors.amber,
                                     size: 18,
                                   );
@@ -241,7 +244,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                widget.provider.isAvailable ? "Available" : "Busy",
+                                widget.provider.isAvailable
+                                    ? "Available"
+                                    : "Busy",
                                 style: TextStyle(
                                   color: widget.provider.isAvailable
                                       ? Colors.green[700]
@@ -291,15 +296,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                         isHighlight: true,
                       ),
                       const SizedBox(height: 20),
-                      _buildInfoRow(
-                        "Phone Number",
-                        widget.provider.phone,
-                      ),
+                      _buildInfoRow("Phone Number", widget.provider.phone),
                       const SizedBox(height: 20),
-                      _buildInfoRow(
-                        "Email",
-                        widget.provider.email,
-                      ),
+                      _buildInfoRow("Email", widget.provider.email),
                       const SizedBox(height: 20),
                       _buildInfoRow(
                         "About",
@@ -342,7 +341,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          _buildServiceTag(widget.provider.category ?? "General Services"),
+                          _buildServiceTag(
+                            widget.provider.category ?? "General Services",
+                          ),
                           _buildServiceTag("Consultation"),
                           _buildServiceTag("Emergency Service"),
                         ],
@@ -460,9 +461,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF0B84FF).withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFF0B84FF).withOpacity(0.3),
-        ),
+        border: Border.all(color: const Color(0xFF0B84FF).withOpacity(0.3)),
       ),
       child: Text(
         service,

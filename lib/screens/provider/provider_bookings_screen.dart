@@ -145,14 +145,17 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                   final allBookings = snapshot.data ?? [];
                   List<Booking> filteredList;
                   if (_selectedFilter == 'Requests') {
-                    filteredList =
-                        allBookings.where((b) => b.status == 'pending').toList();
+                    filteredList = allBookings
+                        .where((b) => ['pending', 'requested'].contains(b.status.toLowerCase()))
+                        .toList();
                   } else if (_selectedFilter == 'Accepted Jobs') {
-                    filteredList =
-                        allBookings.where((b) => b.status == 'accepted').toList();
+                    filteredList = allBookings
+                        .where((b) => ['accepted', 'confirmed', 'in progress'].contains(b.status.toLowerCase()))
+                        .toList();
                   } else {
-                    filteredList =
-                        allBookings.where((b) => b.status == 'completed').toList();
+                    filteredList = allBookings
+                        .where((b) => ['completed'].contains(b.status.toLowerCase()))
+                        .toList();
                   }
 
                   if (filteredList.isEmpty) {

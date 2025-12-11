@@ -71,6 +71,27 @@ class Chat {
   });
 
   factory Chat.fromMap(Map<dynamic, dynamic> map, String id) {
+    DateTime? parseTimestamp(dynamic timestamp) {
+      if (timestamp == null) return null;
+      if (timestamp is DateTime) return timestamp;
+      if (timestamp is String) {
+        try {
+          return DateTime.parse(timestamp);
+        } catch (_) {
+          return null;
+        }
+      }
+      // Handle Firestore Timestamp
+      if (timestamp.toString().contains('Timestamp')) {
+        try {
+          return (timestamp as dynamic).toDate();
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
+    }
+
     return Chat(
       id: id,
       participant1Id: map['participant1Id'] ?? '',
@@ -80,9 +101,7 @@ class Chat {
       participant1ImageUrl: map['participant1ImageUrl'],
       participant2ImageUrl: map['participant2ImageUrl'],
       lastMessage: map['lastMessage'],
-      lastMessageTime: map['lastMessageTime'] != null
-          ? DateTime.parse(map['lastMessageTime'])
-          : null,
+      lastMessageTime: parseTimestamp(map['lastMessageTime']),
       participant1Online: map['participant1Online'] ?? false,
       participant2Online: map['participant2Online'] ?? false,
     );
@@ -94,10 +113,13 @@ class Chat {
       'participant2Id': participant2Id,
       'participant1Name': participant1Name,
       'participant2Name': participant2Name,
-      if (participant1ImageUrl != null) 'participant1ImageUrl': participant1ImageUrl,
-      if (participant2ImageUrl != null) 'participant2ImageUrl': participant2ImageUrl,
+      if (participant1ImageUrl != null)
+        'participant1ImageUrl': participant1ImageUrl,
+      if (participant2ImageUrl != null)
+        'participant2ImageUrl': participant2ImageUrl,
       if (lastMessage != null) 'lastMessage': lastMessage,
-      if (lastMessageTime != null) 'lastMessageTime': lastMessageTime!.toIso8601String(),
+      if (lastMessageTime != null)
+        'lastMessageTime': lastMessageTime!.toIso8601String(),
       'participant1Online': participant1Online,
       'participant2Online': participant2Online,
     };
@@ -114,11 +136,12 @@ class Chat {
   }
 
   String? getOtherParticipantImageUrl(String userId) {
-    return userId == participant1Id ? participant2ImageUrl : participant1ImageUrl;
+    return userId == participant1Id
+        ? participant2ImageUrl
+        : participant1ImageUrl;
   }
 
   bool isOtherParticipantOnline(String userId) {
     return userId == participant1Id ? participant2Online : participant1Online;
   }
 }
-

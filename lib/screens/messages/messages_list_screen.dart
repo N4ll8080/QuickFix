@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../services/messaging_service.dart';
+import '../../services/messaging_service_firestore.dart';
 import '../../models/message_model.dart';
 import 'chat_screen.dart';
 
@@ -12,7 +12,8 @@ class MessagesListScreen extends StatefulWidget {
 }
 
 class _MessagesListScreenState extends State<MessagesListScreen> {
-  final MessagingService _messagingService = MessagingService();
+  final MessagingServiceFirestore _messagingService =
+      MessagingServiceFirestore();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
@@ -53,7 +54,9 @@ class _MessagesListScreenState extends State<MessagesListScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0B84FF)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF0B84FF),
+                    ),
                   ),
                 );
               }
@@ -69,7 +72,11 @@ class _MessagesListScreenState extends State<MessagesListScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 48,
+                        ),
                         const SizedBox(height: 16),
                         Text('Error: ${snapshot.error}'),
                       ],
@@ -113,16 +120,26 @@ class _MessagesListScreenState extends State<MessagesListScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.message_outlined, size: 64, color: Colors.grey[400]),
+                              Icon(
+                                Icons.message_outlined,
+                                size: 64,
+                                color: Colors.grey[400],
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 'No messages yet',
-                                style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                                style: TextStyle(
+                                  color: Colors.grey[700],
+                                  fontSize: 16,
+                                ),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 'Start a conversation with a provider',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                             ],
@@ -134,13 +151,10 @@ class _MessagesListScreenState extends State<MessagesListScreen> {
                     SliverPadding(
                       padding: const EdgeInsets.all(16),
                       sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final chat = chats[index];
-                            return _buildChatCard(chat, user.uid);
-                          },
-                          childCount: chats.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final chat = chats[index];
+                          return _buildChatCard(chat, user.uid);
+                        }, childCount: chats.length),
                       ),
                     ),
                 ],
@@ -154,7 +168,9 @@ class _MessagesListScreenState extends State<MessagesListScreen> {
 
   Widget _buildChatCard(Chat chat, String currentUserId) {
     final otherParticipantName = chat.getOtherParticipantName(currentUserId);
-    final otherParticipantImageUrl = chat.getOtherParticipantImageUrl(currentUserId);
+    final otherParticipantImageUrl = chat.getOtherParticipantImageUrl(
+      currentUserId,
+    );
     final isOnline = chat.isOtherParticipantOnline(currentUserId);
     final lastMessage = chat.lastMessage ?? 'No messages yet';
     final lastMessageTime = chat.lastMessageTime;
@@ -221,7 +237,8 @@ class _MessagesListScreenState extends State<MessagesListScreen> {
                     CircleAvatar(
                       radius: 30,
                       backgroundColor: Colors.grey[200],
-                      child: otherParticipantImageUrl != null &&
+                      child:
+                          otherParticipantImageUrl != null &&
                               otherParticipantImageUrl.isNotEmpty
                           ? ClipOval(
                               child: Image.network(
@@ -293,10 +310,7 @@ class _MessagesListScreenState extends State<MessagesListScreen> {
                       const SizedBox(height: 4),
                       Text(
                         lastMessage,
-                        style: TextStyle(
-                          color: Colors.grey[700],
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: Colors.grey[700], fontSize: 14),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
