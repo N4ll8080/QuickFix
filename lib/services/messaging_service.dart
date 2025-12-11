@@ -9,6 +9,12 @@ class MessagingService {
         'https://quick-fix-89d7f-default-rtdb.asia-southeast1.firebasedatabase.app',
   );
 
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return <String, dynamic>{};
+  }
+
   // Generate consistent chat ID
   String _generateChatId(String userId1, String userId2) {
     final ids = [userId1, userId2]..sort();
@@ -16,7 +22,14 @@ class MessagingService {
   }
 
   // Get or create a chat between two users
-  Future<String> getOrCreateChat(String userId1, String userId2, String userName1, String userName2, {String? userImageUrl1, String? userImageUrl2}) async {
+  Future<String> getOrCreateChat(
+    String userId1,
+    String userId2,
+    String userName1,
+    String userName2, {
+    String? userImageUrl1,
+    String? userImageUrl2,
+  }) async {
     final chatId = _generateChatId(userId1, userId2);
     final chatRef = _db.ref('chats/$chatId');
 
@@ -42,7 +55,12 @@ class MessagingService {
   }
 
   // Send a message
-  Future<void> sendMessage(String chatId, String senderId, String receiverId, String text) async {
+  Future<void> sendMessage(
+    String chatId,
+    String senderId,
+    String receiverId,
+    String text,
+  ) async {
     final messageRef = _db.ref('messages').push();
     final message = Message(
       id: messageRef.key!,
@@ -70,18 +88,17 @@ class MessagingService {
         .equalTo(chatId)
         .onValue
         .map((event) {
-      final List<Message> messages = [];
-      if (event.snapshot.value != null) {
-        final Map<dynamic, dynamic> data =
-            event.snapshot.value as Map<dynamic, dynamic>;
-        data.forEach((key, value) {
-          messages.add(Message.fromMap(value, key));
+          final List<Message> messages = [];
+          if (event.snapshot.value != null) {
+            final data = _asMap(event.snapshot.value);
+            data.forEach((key, value) {
+              messages.add(Message.fromMap(value, key));
+            });
+          }
+          // Sort by timestamp ascending
+          messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          return messages;
         });
-      }
-      // Sort by timestamp ascending
-      messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      return messages;
-    });
   }
 
   // Get all chats for a user
@@ -89,8 +106,7 @@ class MessagingService {
     return _db.ref('chats').onValue.map((event) {
       final List<Chat> chats = [];
       if (event.snapshot.value != null) {
-        final Map<dynamic, dynamic> data =
-            event.snapshot.value as Map<dynamic, dynamic>;
+        final data = _asMap(event.snapshot.value);
         data.forEach((key, value) {
           final chat = Chat.fromMap(value, key);
           // Only include chats where user is a participant
@@ -120,9 +136,9 @@ class MessagingService {
     // Update in all chats where user is participant
     final chatsSnapshot = await _db.ref('chats').get();
     if (chatsSnapshot.exists) {
-      final Map<dynamic, dynamic> chats = chatsSnapshot.value as Map<dynamic, dynamic>;
+      final chats = _asMap(chatsSnapshot.value);
       chats.forEach((chatId, chatData) {
-        final chat = chatData as Map<dynamic, dynamic>;
+        final chat = _asMap(chatData);
         if (chat['participant1Id'] == userId) {
           _db.ref('chats/$chatId').update({'participant1Online': isOnline});
         } else if (chat['participant2Id'] == userId) {
@@ -132,4 +148,3 @@ class MessagingService {
     }
   }
 }
-

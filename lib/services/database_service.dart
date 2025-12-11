@@ -12,6 +12,12 @@ class DatabaseService {
 
   BookingService get _bookingService => BookingService(_db);
 
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return <String, dynamic>{};
+  }
+
   // 1. Get Providers by Category
   Stream<List<UserModel>> getProvidersByCategory(String category) {
     return _db
@@ -23,8 +29,7 @@ class DatabaseService {
         .map((event) {
           final List<UserModel> providers = [];
           if (event.snapshot.value != null) {
-            final Map<dynamic, dynamic> users =
-                event.snapshot.value as Map<dynamic, dynamic>;
+            final users = _asMap(event.snapshot.value);
 
             users.forEach((key, value) {
               final user = UserModel.fromMap(value, key);
@@ -54,8 +59,7 @@ class DatabaseService {
         .map((event) {
           final List<Booking> bookings = [];
           if (event.snapshot.value != null) {
-            final Map<dynamic, dynamic> data =
-                event.snapshot.value as Map<dynamic, dynamic>;
+            final data = _asMap(event.snapshot.value);
             data.forEach((key, value) {
               bookings.add(Booking.fromMap(value, key));
             });
@@ -76,8 +80,7 @@ class DatabaseService {
         .map((event) {
           final List<Booking> bookings = [];
           if (event.snapshot.value != null) {
-            final Map<dynamic, dynamic> data =
-                event.snapshot.value as Map<dynamic, dynamic>;
+            final data = _asMap(event.snapshot.value);
             data.forEach((key, value) {
               bookings.add(Booking.fromMap(value, key));
             });
@@ -120,10 +123,7 @@ class DatabaseService {
   Future<Booking?> getBooking(String bookingId) async {
     final snapshot = await _db.ref('bookings/$bookingId').get();
     if (snapshot.exists && snapshot.value != null) {
-      return Booking.fromMap(
-        snapshot.value as Map<dynamic, dynamic>,
-        bookingId,
-      );
+      return Booking.fromMap(_asMap(snapshot.value), bookingId);
     }
     return null;
   }
@@ -137,10 +137,7 @@ class DatabaseService {
   Stream<UserModel?> getUserStream(String uid) {
     return _db.ref('users/$uid').onValue.map((event) {
       if (event.snapshot.value != null) {
-        return UserModel.fromMap(
-          event.snapshot.value as Map<dynamic, dynamic>,
-          uid,
-        );
+        return UserModel.fromMap(_asMap(event.snapshot.value), uid);
       }
       return null;
     });

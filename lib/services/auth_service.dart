@@ -36,6 +36,12 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
 
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return <String, dynamic>{};
+  }
+
   // Clear cache on logout
   void _clearCache() {
     _cachedProfile = null;
@@ -82,7 +88,7 @@ class AuthService {
             }
 
             final profile = UserModel.fromMap(
-              event.snapshot.value as Map<dynamic, dynamic>,
+              _asMap(event.snapshot.value),
               uid,
             );
 
@@ -171,10 +177,7 @@ class AuthService {
             );
 
         if (snapshot.exists && snapshot.value != null) {
-          final profile = UserModel.fromMap(
-            snapshot.value as Map<dynamic, dynamic>,
-            user.uid,
-          );
+          final profile = UserModel.fromMap(_asMap(snapshot.value), user.uid);
 
           // Cache the profile
           _cachedProfile = profile;
@@ -278,7 +281,7 @@ class AuthService {
             .timeout(const Duration(seconds: 10));
 
         if (snapshot.exists && snapshot.value != null) {
-          final data = snapshot.value as Map<dynamic, dynamic>;
+          final data = _asMap(snapshot.value);
           final String role = data['userType'] ?? 'seeker';
 
           print('DEBUG: User role from DB: $role, Expected: $expectedRole');

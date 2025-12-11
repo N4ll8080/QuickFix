@@ -17,6 +17,12 @@ class _DebugAccountScreenState extends State<DebugAccountScreen> {
   String _result = '';
   bool _isLoading = false;
 
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return <String, dynamic>{};
+  }
+
   Future<void> _checkAccount() async {
     if (_emailController.text.isEmpty) {
       setState(() => _result = 'Please enter an email');
@@ -39,11 +45,11 @@ class _DebugAccountScreenState extends State<DebugAccountScreen> {
       final snapshot = await db.ref('users').get();
 
       if (snapshot.exists) {
-        final users = snapshot.value as Map<dynamic, dynamic>;
+        final users = _asMap(snapshot.value);
         String foundInfo = '';
 
         users.forEach((uid, userData) {
-          final data = userData as Map<dynamic, dynamic>;
+          final data = _asMap(userData);
           if (data['email'] == _emailController.text) {
             foundInfo =
                 '''
@@ -95,10 +101,10 @@ ${data['rate'] != null ? 'Rate: ${data['rate']}' : ''}
       final snapshot = await db.ref('users').get();
 
       if (snapshot.exists) {
-        final users = snapshot.value as Map<dynamic, dynamic>;
+        final users = _asMap(snapshot.value);
 
         users.forEach((uid, userData) async {
-          final data = userData as Map<dynamic, dynamic>;
+          final data = _asMap(userData);
           if (data['email'] == email) {
             await db.ref('users/$uid').update({'userType': newUserType});
             setState(() {

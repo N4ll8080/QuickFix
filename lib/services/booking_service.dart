@@ -42,43 +42,47 @@ class BookingService {
     );
     final bookingRef = _db.ref('bookings').push();
 
+    // --- THIS IS THE MISSING DECLARATION ---
     final lockId =
         _db.ref('locks').push().key ??
         DateTime.now().microsecondsSinceEpoch.toString();
+    // ---------------------------------------
 
     try {
       await withRetry(() async {
-        // Step 1: Clean up any expired locks
+        // 1. Clean up old locks
         await _cleanupExpiredLock(availRef);
 
-        // Step 2: Place our lock
+        // 2. Place new lock
         await _placeLock(availRef, lockId, booking.seekerId);
 
-        // Step 3: Create booking in database
-        await bookingRef.set({
+        // 3. Prepare Booking Data
+        final bookingData = <String, Object?>{
           'bookingId': bookingRef.key,
           'providerId': booking.providerId,
           'seekerId': booking.seekerId,
-          'seekerName': booking.seekerName,
-          'providerName': booking.providerName,
-          'serviceId': booking.serviceId,
-          'serviceName': booking.serviceName,
-          'serviceCategory': booking.serviceCategory,
+          'seekerName': booking.seekerName.toString(),
+          'providerName': booking.providerName.toString(),
+          'serviceId': booking.serviceId.toString(),
+          'serviceName': booking.serviceName.toString(),
+          'serviceCategory': booking.serviceCategory.toString(),
           'scheduleDate': slotDateKey,
           'scheduleTime': slotTimeKey,
           'slotDate': slotDateKey,
           'slotTime': slotTimeKey,
           'slotUtc': slotUtc.toIso8601String(),
           'status': 'Pending',
-          'address': booking.address,
-          'notes': booking.problemDescription,
-          'problemDescription': booking.problemDescription,
+          'address': booking.address.toString(),
+          'notes': booking.problemDescription.toString(),
+          'problemDescription': booking.problemDescription.toString(),
           'priceCents': priceCents,
           'createdAt': ServerValue.timestamp,
-        });
+        };
 
-        // Step 4: Finalize the lock - convert to booked status
-        // This must preserve lockedAt as a number for validation
+        // 4. Save to Database
+        await bookingRef.set(bookingData);
+
+        // 5. Finalize the lock (convert to booked status)
         await _finalizeBookingLock(
           availRef: availRef,
           lockId: lockId,
@@ -101,13 +105,34 @@ class BookingService {
     }
   }
 
+  Future<void> _assertBookingPreconditions({
+    required String seekerId,
+    required String providerId,
+    required DatabaseReference availRef,
+  }) async {
+    // Validate the caller has seeker role; rules also enforce, but this
+    // provides a clearer client error before we attempt the transaction.
+    final roleSnap = await _db.ref('users/$seekerId/userType').get();
+    final role = roleSnap.value?.toString().toLowerCase();
+    if (role != 'seeker' && seekerId != providerId) {
+      throw Exception('Permission denied: account is not a seeker');
+    }
+
+    // If slot is already booked, fail fast with a readable error.
+    final slotSnap = await availRef.get();
+    final slot = _asMap(slotSnap.value);
+    if ((slot['status'] as String?) == 'booked') {
+      throw Exception('Slot already booked');
+    }
+  }
+
   Future<void> cancelBooking(String bookingId) async {
     final bookingSnap = await _db.ref('bookings/$bookingId').get();
     if (!bookingSnap.exists) return;
-    final data = bookingSnap.value as Map?;
-    final providerId = data?['providerId'] as String?;
-    final slotDate = data?['slotDate'] as String?;
-    final slotTime = data?['slotTime'] as String?;
+    final data = _asMap(bookingSnap.value);
+    final providerId = data['providerId'] as String?;
+    final slotDate = data['slotDate'] as String?;
+    final slotTime = data['slotTime'] as String?;
 
     await withRetry(() async {
       if (providerId != null && slotDate != null && slotTime != null) {
@@ -146,19 +171,13 @@ class BookingService {
 
       try {
         final result = await rootRef.runTransaction((mutable) {
-          final root = Map<String, dynamic>.from((mutable as Map?) ?? {});
+          final root = _asMap(mutable);
 
           Map<String, dynamic> path(String path) {
             return path.split('/').fold<Map<String, dynamic>>(root, (acc, seg) {
-              final current = acc[seg];
-              if (current is Map<String, dynamic>) {
-                acc[seg] = current;
-              } else if (current is Map) {
-                acc[seg] = Map<String, dynamic>.from(current);
-              } else {
-                acc[seg] = <String, dynamic>{};
-              }
-              return acc[seg] as Map<String, dynamic>;
+              final coerced = _asMap(acc[seg]);
+              acc[seg] = coerced;
+              return coerced;
             });
           }
 
@@ -246,8 +265,15 @@ class BookingService {
       return;
     }
 
-    final data = snapshot.value as Map?;
-    if (data == null) return;
+    final raw = snapshot.value;
+
+    // Handle legacy/string values (e.g. "open") by normalizing to map shape
+    if (raw is! Map) {
+      await slotRef.set({'status': 'open'});
+      return;
+    }
+
+    final data = Map<String, dynamic>.from(raw);
 
     final status = data['status'] as String?;
     if (status != 'pending_lock') return;
@@ -277,7 +303,9 @@ class BookingService {
     final nowMs = DateTime.now().millisecondsSinceEpoch + serverOffset;
 
     final result = await slotRef.runTransaction((currentData) {
-      final data = Map<String, dynamic>.from((currentData as Map?) ?? {});
+      // CHANGE: Use _asMap to safely handle Strings ("open") vs Maps
+      final data = _asMap(currentData);
+
       final status = data['status'] as String?;
       final lockedAt = (data['lockedAt'] as int?) ?? 0;
       final lockOwner = data['lockOwner'] as String?;
@@ -287,6 +315,7 @@ class BookingService {
           lockedAt > 0 &&
           nowMs - lockedAt > _lockTtlMs;
 
+      // Treat null status (from "open" string) as free
       final isFree =
           status == null ||
           status == 'open' ||
@@ -308,10 +337,10 @@ class BookingService {
     }
 
     final verifySnapshot = await slotRef.get();
-    final verifyData = verifySnapshot.value as Map?;
-    final verifyOwner = verifyData?['lockOwner']?.toString();
+    // CHANGE: Use _asMap here too
+    final verifyData = _asMap(verifySnapshot.value);
 
-    if (verifyOwner != lockId) {
+    if (verifyData['lockOwner'] != lockId) {
       throw Exception('Lost slot lock to another client');
     }
   }
@@ -323,16 +352,15 @@ class BookingService {
     required String providerId,
     required String? seekerId,
   }) async {
-    // Use a two-step process to avoid validation issues:
-    // 1. Read current lockedAt value
-    // 2. Update to booked while preserving numeric lockedAt
-
     final currentSnapshot = await availRef.get();
-    final currentData = currentSnapshot.value as Map?;
-    final currentLockedAt = currentData?['lockedAt'];
+    // CHANGE: Use _asMap
+    final currentData = _asMap(currentSnapshot.value);
+    final currentLockedAt = currentData['lockedAt'];
 
     final result = await availRef.runTransaction((currentData) {
-      final data = Map<String, dynamic>.from((currentData as Map?) ?? {});
+      // CHANGE: Use _asMap
+      final data = _asMap(currentData);
+
       final status = data['status'] as String?;
       final lockOwner = data['lockOwner'] as String?;
 
@@ -340,42 +368,45 @@ class BookingService {
         return Transaction.abort();
       }
 
-      // Build the update data - keep lockedAt as number, add bookedAt as string
       final updateData = <String, dynamic>{
         'status': 'booked',
         'lockOwner': lockId,
         'providerId': providerId,
-        'lockedAt': currentLockedAt, // Keep the numeric timestamp
-        'bookedAt': DateTime.now()
-            .toUtc()
-            .toIso8601String(), // Add string timestamp
+        // Keep the original timestamp
+        'lockedAt': currentLockedAt,
+        'bookedAt': DateTime.now().toUtc().toIso8601String(),
       };
 
-      if (seekerId != null) {
-        updateData['seekerId'] = seekerId;
-      }
-
-      if (priceCents != null) {
-        updateData['priceCents'] = priceCents;
-      }
+      if (seekerId != null) updateData['seekerId'] = seekerId;
+      if (priceCents != null) updateData['priceCents'] = priceCents;
 
       return Transaction.success(updateData);
     });
 
     if (!result.committed) {
       print('Warning: Failed to finalize booking lock');
-      // Don't throw - booking already created successfully
     }
   }
 
   Future<void> _releaseLock(DatabaseReference slotRef, String lockId) async {
     await slotRef.runTransaction((currentData) {
-      final data = Map<String, dynamic>.from((currentData as Map?) ?? {});
+      // CHANGE: Use _asMap
+      final data = _asMap(currentData);
+
       final lockOwner = data['lockOwner'] as String?;
       if (lockOwner != lockId) {
-        return Transaction.success(data);
+        // Return original data (safely) if we don't own it
+        return Transaction.success(currentData);
       }
       return Transaction.success({'status': 'open'});
     });
+  }
+
+  // Helper to safely convert Strings or Maps into a Map<String, dynamic>
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) return Map<String, dynamic>.from(value);
+    // If it's a String (like "open") or null, return empty map so checks default to null/safe
+    return <String, dynamic>{};
   }
 }
