@@ -4,9 +4,9 @@
       "$providerId": {
         "$slotDate": {
           "$slotTime": {
-            ".read": "auth != null",
-            ".write": "auth != null",
-            ".validate": "newData.hasChildren(['status']) && ( (newData.child('status').val() == 'open' && (!data.exists() || data.child('status').val() == 'open' || data.child('status').val() == 'pending_lock')) || (newData.child('status').val() == 'pending_lock' && newData.child('lockOwner').isString() && newData.child('lockedAt').isNumber() && (!data.exists() || data.child('status').val() == 'open' || data.child('status').val() == 'pending_lock')) || (newData.child('status').val() == 'booked' && data.child('status').val() == 'pending_lock' && data.child('lockOwner').exists() && newData.child('lockOwner').val() == data.child('lockOwner').val() && (!newData.child('priceCents').exists() || newData.child('priceCents').isNumber()) && (!newData.child('providerId').exists() || newData.child('providerId').isString()) && (!newData.child('seekerId').exists() || newData.child('seekerId').isString()) && (!newData.child('bookedAt').exists() || newData.child('bookedAt').isString())) )",
+            ".read": "auth != null && (auth.uid == $providerId || root.child('users').child(auth.uid).child('userType').val() == 'seeker')",
+            ".write": "auth != null && (auth.uid == $providerId || root.child('users').child(auth.uid).child('userType').val() == 'seeker')",
+            ".validate": "newData.hasChildren(['status']) && ((newData.child('status').val() == 'open' && (!data.exists() || data.child('status').val() == 'open' || data.child('status').val() == 'pending_lock')) || (newData.child('status').val() == 'pending_lock' && newData.child('lockOwner').isString() && newData.child('lockedAt').isNumber() && newData.child('ownerId').isString() && (!data.exists() || data.child('status').val() == 'open' || data.child('status').val() == 'pending_lock')) || (newData.child('status').val() == 'booked' && data.child('status').val() == 'pending_lock' && data.child('lockOwner').exists() && newData.child('lockOwner').val() == data.child('lockOwner').val() && newData.child('providerId').isString() && (!newData.child('priceCents').exists() || newData.child('priceCents').isNumber()) && (!newData.child('seekerId').exists() || newData.child('seekerId').isString()) && (!newData.child('bookedAt').exists() || newData.child('bookedAt').isString())))",
             "status": {
               ".validate": "newData.isString() && newData.val().matches(/^(open|pending_lock|booked)$/)"
             },
@@ -30,14 +30,18 @@
             },
             "priceCents": {
               ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
             }
           }
         }
       }
     },
     "bookings": {
+      ".read": "auth != null",
+      ".indexOn": ["providerId", "seekerId", "status"],
       "$bookingId": {
-        ".read": "auth != null && (data.child('seekerId').val() == auth.uid || data.child('providerId').val() == auth.uid)",
         ".write": "auth != null && ((!data.exists() && newData.child('seekerId').val() == auth.uid) || (data.exists() && (data.child('providerId').val() == auth.uid || data.child('seekerId').val() == auth.uid)))",
         ".validate": "newData.hasChildren(['providerId', 'seekerId', 'slotDate', 'slotTime', 'slotUtc', 'status', 'address', 'problemDescription'])",
         "providerId": {
@@ -59,7 +63,7 @@
           ".validate": "newData.isNumber() && (!data.exists() || newData.val() == data.val())"
         },
         "status": {
-          ".validate": "newData.isString() && newData.val().matches(/^(Pending|pending|booked|rescheduled|Cancelled|Declined|In Progress|Completed|Requested|Accepted|Confirmed)$/i) && ((!data.exists()) || (auth.uid == root.child('bookings').child($bookingId).child('providerId').val() && newData.val().matches(/^(Accepted|Confirmed|Declined|In Progress|Completed)$/i)) || (auth.uid == root.child('bookings').child($bookingId).child('seekerId').val() && newData.val().matches(/^(Pending|Cancelled|rescheduled)$/i)))"
+          ".validate": "newData.isString() && newData.val().matches(/^(pending|booked|rescheduled|cancelled|declined|in progress|completed|requested|accepted|confirmed)$/i) && ((!data.exists()) || (auth.uid == root.child('bookings').child($bookingId).child('providerId').val() && newData.val().matches(/^(accepted|confirmed|declined|in progress|completed)$/i)) || (auth.uid == root.child('bookings').child($bookingId).child('seekerId').val() && newData.val().matches(/^(pending|cancelled|rescheduled)$/i)))"
         },
         "createdAt": {
           ".validate": "newData.isNumber() && (!data.exists() || newData.val() == data.val())"
@@ -119,10 +123,7 @@
     },
     "users": {
       ".read": "auth != null",
-      ".indexOn": [
-        "category",
-        "userType"
-      ],
+      ".indexOn": ["category", "userType"],
       "$uid": {
         ".write": "auth != null && auth.uid == $uid"
       }

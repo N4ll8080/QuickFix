@@ -22,21 +22,32 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
   final AuthService _authService = AuthService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Handle Accept/Decline
+  // Valid pending statuses - LOWERCASE
+  final Set<String> _pendingStatuses = {'pending', 'requested'};
+
+  // Handle Accept/Decline - use lowercase
   Future<void> _updateStatus(String bookingId, String status) async {
     try {
-      await _dbService.updateBookingStatus(bookingId, status);
+      // Normalize to lowercase
+      final normalizedStatus = status.toLowerCase();
+      print('DEBUG: Updating booking $bookingId to $normalizedStatus');
+
+      await _dbService.updateBookingStatus(bookingId, normalizedStatus);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Request $status"),
-            backgroundColor: status.toLowerCase() == 'accepted'
+            content: Text(
+              "Request ${normalizedStatus == 'accepted' ? 'accepted' : 'declined'}",
+            ),
+            backgroundColor: normalizedStatus == 'accepted'
                 ? Colors.green
                 : Colors.orange,
           ),
         );
       }
     } catch (e) {
+      print('ERROR updating status: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
@@ -127,10 +138,15 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
           }
 
           final currentUserId = user.uid;
+          print('DEBUG: Current provider ID: $currentUserId');
 
           return StreamBuilder<List<Booking>>(
             stream: _dbService.getProviderBookings(currentUserId),
             builder: (context, snapshot) {
+              print('DEBUG: StreamBuilder state: ${snapshot.connectionState}');
+              print('DEBUG: Has data: ${snapshot.hasData}');
+              print('DEBUG: Data: ${snapshot.data}');
+
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: CircularProgressIndicator(
@@ -141,12 +157,50 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
                 );
               }
 
-              // Filter only 'Pending' or 'Requested' requests (case-insensitive)
-              final requests = (snapshot.data ?? [])
-                  .where(
-                    (b) => ['pending', 'requested'].contains(b.status.toLowerCase()),
-                  )
-                  .toList();
+              if (snapshot.hasError) {
+                print('ERROR in stream: ${snapshot.error}');
+                return Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 16),
+                        Text('Error: ${snapshot.error}'),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => setState(() {}),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // Filter pending requests with case-insensitive comparison
+              final allBookings = snapshot.data ?? [];
+              print('DEBUG: Total bookings received: ${allBookings.length}');
+
+              final requests = allBookings.where((b) {
+                final status = b.status.toLowerCase();
+                final isPending = _pendingStatuses.contains(status);
+                print(
+                  'DEBUG: Booking ${b.id} status: "$status" (original: "${b.status}"), isPending: $isPending',
+                );
+                return isPending;
+              }).toList();
+
+              print('DEBUG: Filtered pending requests: ${requests.length}');
 
               if (requests.isEmpty) {
                 return Center(
@@ -170,6 +224,14 @@ class _ProviderRequestsScreenState extends State<ProviderRequestsScreen> {
                           style: TextStyle(
                             color: Colors.grey[700],
                             fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Total bookings: ${allBookings.length}",
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
                           ),
                         ),
                       ],

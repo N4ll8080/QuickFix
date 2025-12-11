@@ -7,8 +7,7 @@ class BookingService {
   BookingService(this._db);
 
   final FirebaseDatabase _db;
-  static const int _lockTtlMs =
-      300000; // Increased to 5 minutes for reliability
+  static const int _lockTtlMs = 300000; // 5 minutes
 
   Future<int> fetchPriceCents(String providerId) async {
     final snap = await _db.ref('users/$providerId/rate').get();
@@ -49,10 +48,13 @@ class BookingService {
 
     try {
       await withRetry(() async {
+        // Step 1: Clean up any expired locks
         await _cleanupExpiredLock(availRef);
+
+        // Step 2: Place our lock
         await _placeLock(availRef, lockId, booking.seekerId);
 
-        // Create booking first
+        // Step 3: Create booking in database
         await bookingRef.set({
           'bookingId': bookingRef.key,
           'providerId': booking.providerId,
@@ -75,28 +77,21 @@ class BookingService {
           'createdAt': ServerValue.timestamp,
         });
 
-        // Then finalize the lock - if this fails, booking still exists
-        // but slot isn't marked as booked (will be cleaned up later)
-        try {
-          await _finalizeBookingLock(
-            availRef: availRef,
-            lockId: lockId,
-            priceCents: priceCents,
-            providerId: booking.providerId,
-            seekerId: booking.seekerId,
-          );
-        } catch (e) {
-          // If finalization fails, log it but don't throw
-          // The booking exists and provider can still see/accept it
-          print('Warning: Lock finalization failed, but booking created: $e');
-          // Don't rethrow - booking is valid even if slot status isn't updated
-        }
+        // Step 4: Finalize the lock - convert to booked status
+        // This must preserve lockedAt as a number for validation
+        await _finalizeBookingLock(
+          availRef: availRef,
+          lockId: lockId,
+          priceCents: priceCents,
+          providerId: booking.providerId,
+          seekerId: booking.seekerId,
+        );
       }).timeout(
         const Duration(seconds: 10),
         onTimeout: () => throw TimeoutException('Network timeout'),
       );
     } catch (e) {
-      // Only clean up if we haven't created the booking yet
+      // Clean up on failure
       try {
         await _releaseLock(availRef, lockId);
       } catch (_) {
@@ -117,10 +112,7 @@ class BookingService {
     await withRetry(() async {
       if (providerId != null && slotDate != null && slotTime != null) {
         final slotRef = _db.ref('availability/$providerId/$slotDate/$slotTime');
-        await slotRef.runTransaction((currentData) {
-          if (currentData == null) return Transaction.abort();
-          return Transaction.success({'status': 'open'});
-        });
+        await slotRef.set({'status': 'open'});
       }
       await _db.ref('bookings/$bookingId').update({'status': 'Cancelled'});
     });
@@ -248,10 +240,8 @@ class BookingService {
   }
 
   Future<void> _cleanupExpiredLock(DatabaseReference slotRef) async {
-    // Read current data first to check if cleanup is needed
     final snapshot = await slotRef.get();
     if (!snapshot.exists) {
-      // Initialize as open if doesn't exist
       await slotRef.set({'status': 'open'});
       return;
     }
@@ -260,22 +250,19 @@ class BookingService {
     if (data == null) return;
 
     final status = data['status'] as String?;
-    if (status != 'pending_lock') return; // No cleanup needed
+    if (status != 'pending_lock') return;
 
     final lockedAt = (data['lockedAt'] as int?) ?? 0;
     if (lockedAt == 0) {
-      // Invalid lock, clean it up
       await slotRef.set({'status': 'open'});
       return;
     }
 
-    // Use server timestamp for comparison
     final serverTimeSnapshot = await _db.ref('.info/serverTimeOffset').get();
     final serverOffset = (serverTimeSnapshot.value as int?) ?? 0;
     final serverTime = DateTime.now().millisecondsSinceEpoch + serverOffset;
 
     if (serverTime - lockedAt > _lockTtlMs) {
-      // Lock expired, clean it up
       await slotRef.set({'status': 'open'});
     }
   }
@@ -285,7 +272,6 @@ class BookingService {
     String lockId,
     String ownerId,
   ) async {
-    // Get server time offset for accurate timing
     final serverTimeSnapshot = await _db.ref('.info/serverTimeOffset').get();
     final serverOffset = (serverTimeSnapshot.value as int?) ?? 0;
     final nowMs = DateTime.now().millisecondsSinceEpoch + serverOffset;
@@ -296,7 +282,6 @@ class BookingService {
       final lockedAt = (data['lockedAt'] as int?) ?? 0;
       final lockOwner = data['lockOwner'] as String?;
 
-      // Calculate if lock is expired using consistent timing
       final lockExpired =
           status == 'pending_lock' &&
           lockedAt > 0 &&
@@ -322,7 +307,6 @@ class BookingService {
       throw Exception('Slot unavailable');
     }
 
-    // Verify lock ownership
     final verifySnapshot = await slotRef.get();
     final verifyData = verifySnapshot.value as Map?;
     final verifyOwner = verifyData?['lockOwner']?.toString();
@@ -339,30 +323,48 @@ class BookingService {
     required String providerId,
     required String? seekerId,
   }) async {
-    // Use a simpler approach: just update the status without timestamp comparison
+    // Use a two-step process to avoid validation issues:
+    // 1. Read current lockedAt value
+    // 2. Update to booked while preserving numeric lockedAt
+
+    final currentSnapshot = await availRef.get();
+    final currentData = currentSnapshot.value as Map?;
+    final currentLockedAt = currentData?['lockedAt'];
+
     final result = await availRef.runTransaction((currentData) {
       final data = Map<String, dynamic>.from((currentData as Map?) ?? {});
       final status = data['status'] as String?;
       final lockOwner = data['lockOwner'] as String?;
 
-      // Simple check: status must be pending_lock and lockOwner must match
       if (status != 'pending_lock' || lockOwner != lockId) {
         return Transaction.abort();
       }
 
-      return Transaction.success({
+      // Build the update data - keep lockedAt as number, add bookedAt as string
+      final updateData = <String, dynamic>{
         'status': 'booked',
         'lockOwner': lockId,
         'providerId': providerId,
-        if (seekerId != null) 'seekerId': seekerId,
-        'bookedAt': DateTime.now().toUtc().toIso8601String(),
-        if (priceCents != null) 'priceCents': priceCents,
-      });
+        'lockedAt': currentLockedAt, // Keep the numeric timestamp
+        'bookedAt': DateTime.now()
+            .toUtc()
+            .toIso8601String(), // Add string timestamp
+      };
+
+      if (seekerId != null) {
+        updateData['seekerId'] = seekerId;
+      }
+
+      if (priceCents != null) {
+        updateData['priceCents'] = priceCents;
+      }
+
+      return Transaction.success(updateData);
     });
 
     if (!result.committed) {
-      print('Warning: Transaction not committed in _finalizeBookingLock');
-      // Don't throw - booking already created
+      print('Warning: Failed to finalize booking lock');
+      // Don't throw - booking already created successfully
     }
   }
 
