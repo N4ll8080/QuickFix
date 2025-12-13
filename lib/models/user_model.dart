@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:firebase_database/firebase_database.dart';
 
 import '../core/safety_utils.dart';
@@ -62,21 +63,134 @@ class UserModel {
   static Map<String, dynamic>? _parseAvailability(dynamic raw) {
     if (raw == null) return null;
     
-    if (raw is Map<String, dynamic>) {
-      return Map<String, dynamic>.from(raw);
-    }
+    Map<String, dynamic> parsedMap;
     
-    if (raw is Map) {
+    // Handle Map types
+    if (raw is Map<String, dynamic>) {
+      parsedMap = Map<String, dynamic>.from(raw);
+    } else if (raw is Map) {
       try {
-        return Map<String, dynamic>.from(raw);
+        parsedMap = Map<String, dynamic>.from(raw);
       } catch (e) {
         print('Warning: Failed to parse availability map: $e');
         return null;
       }
+    } else if (raw is String) {
+      // Handle JSON string format (legacy data)
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          parsedMap = Map<String, dynamic>.from(decoded);
+        } else {
+          print('Warning: Availability JSON string decoded to non-Map type: ${decoded.runtimeType}');
+          return null;
+        }
+      } catch (e) {
+        print('Warning: Failed to parse availability JSON string: $e');
+        return null;
+      }
+    } else {
+      // If it's another type, log and return null
+      print('Warning: Availability field is ${raw.runtimeType}, expected Map or JSON string. Ignoring.');
+      return null;
     }
     
-    // If it's a String or other type, log and return null
-    print('Warning: Availability field is ${raw.runtimeType}, expected Map. Ignoring.');
+    // Recursively normalize nested fields like workingDays
+    return _normalizeAvailabilityFields(parsedMap);
+  }
+
+  /// Recursively normalizes nested fields in availability data.
+  /// Handles cases where nested fields like workingDays might be stored as JSON strings.
+  static Map<String, dynamic> _normalizeAvailabilityFields(Map<String, dynamic> availability) {
+    final normalized = <String, dynamic>{};
+    
+    for (final entry in availability.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      // Special handling for workingDays - it should be a Map<String, bool>
+      if (key == 'workingDays') {
+        normalized[key] = _parseWorkingDays(value);
+      } else if (key == 'unavailableDates') {
+        // Ensure unavailableDates is a List
+        normalized[key] = _parseUnavailableDates(value);
+      } else {
+        // For other fields, preserve as-is or normalize if needed
+        normalized[key] = value;
+      }
+    }
+    
+    return normalized;
+  }
+
+  /// Safely parses workingDays from Map, JSON string, or other formats.
+  /// Returns a Map<String, bool> or null if parsing fails.
+  static Map<String, bool>? _parseWorkingDays(dynamic raw) {
+    if (raw == null) return null;
+    
+    // If it's already a Map, try to convert to Map<String, bool>
+    if (raw is Map) {
+      try {
+        final result = <String, bool>{};
+        raw.forEach((key, value) {
+          final stringKey = key.toString();
+          // Convert value to bool (handle true/false, "true"/"false", 1/0, etc.)
+          if (value is bool) {
+            result[stringKey] = value;
+          } else if (value is String) {
+            result[stringKey] = value.toLowerCase() == 'true' || value == '1';
+          } else if (value is int) {
+            result[stringKey] = value != 0;
+          } else {
+            result[stringKey] = false;
+          }
+        });
+        return result;
+      } catch (e) {
+        print('Warning: Failed to parse workingDays map: $e');
+        return null;
+      }
+    }
+    
+    // If it's a JSON string, try to decode it
+    if (raw is String) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return _parseWorkingDays(decoded); // Recursively parse the decoded map
+        } else {
+          print('Warning: workingDays JSON string decoded to non-Map type: ${decoded.runtimeType}');
+          return null;
+        }
+      } catch (e) {
+        print('Warning: Failed to parse workingDays JSON string: $e');
+        return null;
+      }
+    }
+    
+    print('Warning: workingDays is ${raw.runtimeType}, expected Map or JSON string. Ignoring.');
+    return null;
+  }
+
+  /// Safely parses unavailableDates from List or other formats.
+  static List<dynamic>? _parseUnavailableDates(dynamic raw) {
+    if (raw == null) return null;
+    
+    if (raw is List) {
+      return List.from(raw);
+    }
+    
+    if (raw is String) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          return List.from(decoded);
+        }
+      } catch (e) {
+        print('Warning: Failed to parse unavailableDates JSON string: $e');
+      }
+    }
+    
     return null;
   }
 

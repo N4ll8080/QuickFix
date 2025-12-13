@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -137,10 +138,12 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       try {
         final workingDaysRaw = availability['workingDays'];
         if (workingDaysRaw != null) {
-          final workingDays = Map<String, bool>.from(workingDaysRaw as Map);
-          final dayName = DateFormat('EEEE').format(_selectedDate!);
-          if (workingDays[dayName] != true) {
-            return false;
+          final workingDays = _parseWorkingDays(workingDaysRaw);
+          if (workingDays != null) {
+            final dayName = DateFormat('EEEE').format(_selectedDate!);
+            if (workingDays[dayName] != true) {
+              return false;
+            }
           }
         }
       } catch (e) {
@@ -217,10 +220,12 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
         try {
           final workingDaysRaw = availability['workingDays'];
           if (workingDaysRaw != null) {
-            final workingDays = Map<String, bool>.from(workingDaysRaw as Map);
-            final dayName = DateFormat('EEEE').format(_selectedDate!);
-            if (workingDays[dayName] != true) {
-              return 'Not Available';
+            final workingDays = _parseWorkingDays(workingDaysRaw);
+            if (workingDays != null) {
+              final dayName = DateFormat('EEEE').format(_selectedDate!);
+              if (workingDays[dayName] != true) {
+                return 'Not Available';
+              }
             }
           }
         } catch (e) {
@@ -251,6 +256,56 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       }
     }
 
+    return null;
+  }
+
+  /// Safely parses workingDays from Map, JSON string, or other formats.
+  /// Returns a Map<String, bool> or null if parsing fails.
+  /// This provides defensive parsing at the UI layer as a fallback.
+  Map<String, bool>? _parseWorkingDays(dynamic raw) {
+    if (raw == null) return null;
+    
+    // If it's already a Map, try to convert to Map<String, bool>
+    if (raw is Map) {
+      try {
+        final result = <String, bool>{};
+        raw.forEach((key, value) {
+          final stringKey = key.toString();
+          // Convert value to bool (handle true/false, "true"/"false", 1/0, etc.)
+          if (value is bool) {
+            result[stringKey] = value;
+          } else if (value is String) {
+            result[stringKey] = value.toLowerCase() == 'true' || value == '1';
+          } else if (value is int) {
+            result[stringKey] = value != 0;
+          } else {
+            result[stringKey] = false;
+          }
+        });
+        return result;
+      } catch (e) {
+        print('Warning: Failed to parse workingDays map: $e');
+        return null;
+      }
+    }
+    
+    // If it's a JSON string, try to decode it
+    if (raw is String) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return _parseWorkingDays(decoded); // Recursively parse the decoded map
+        } else {
+          print('Warning: workingDays JSON string decoded to non-Map type: ${decoded.runtimeType}');
+          return null;
+        }
+      } catch (e) {
+        print('Warning: Failed to parse workingDays JSON string: $e');
+        return null;
+      }
+    }
+    
+    print('Warning: workingDays is ${raw.runtimeType}, expected Map or JSON string. Ignoring.');
     return null;
   }
 
