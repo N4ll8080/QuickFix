@@ -103,9 +103,12 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     // Check if date is unavailable
     final availability = widget.provider.availability;
     if (availability != null && availability['unavailableDates'] != null) {
-      final unavailableDates = (availability['unavailableDates'] as List)
-          .map((d) => DateTime.parse(d))
-          .toList();
+      try {
+        final unavailableDatesList = availability['unavailableDates'];
+        if (unavailableDatesList is List) {
+          final unavailableDates = unavailableDatesList
+              .map((d) => DateTime.parse(d.toString()))
+              .toList();
 
       final selectedDateOnly = DateTime(
         _selectedDate!.year,
@@ -113,24 +116,35 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
         _selectedDate!.day,
       );
 
-      for (final unavailableDate in unavailableDates) {
-        final unavailableDateOnly = DateTime(
-          unavailableDate.year,
-          unavailableDate.month,
-          unavailableDate.day,
-        );
-        if (selectedDateOnly == unavailableDateOnly) {
-          return false;
+          for (final unavailableDate in unavailableDates) {
+            final unavailableDateOnly = DateTime(
+              unavailableDate.year,
+              unavailableDate.month,
+              unavailableDate.day,
+            );
+            if (selectedDateOnly == unavailableDateOnly) {
+              return false;
+            }
+          }
         }
+      } catch (e) {
+        print('Warning: Failed to parse unavailableDates: $e');
       }
     }
 
     // Check if day is a working day
     if (availability != null && availability['workingDays'] != null) {
-      final workingDays = Map<String, bool>.from(availability['workingDays']);
-      final dayName = DateFormat('EEEE').format(_selectedDate!);
-      if (workingDays[dayName] != true) {
-        return false;
+      try {
+        final workingDaysRaw = availability['workingDays'];
+        if (workingDaysRaw != null) {
+          final workingDays = Map<String, bool>.from(workingDaysRaw as Map);
+          final dayName = DateFormat('EEEE').format(_selectedDate!);
+          if (workingDays[dayName] != true) {
+            return false;
+          }
+        }
+      } catch (e) {
+        print('Warning: Failed to parse workingDays: $e');
       }
     }
 
@@ -169,9 +183,12 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
 
       // Check if date is unavailable
       if (availability != null && availability['unavailableDates'] != null) {
-        final unavailableDates = (availability['unavailableDates'] as List)
-            .map((d) => DateTime.parse(d))
-            .toList();
+        try {
+          final unavailableDatesList = availability['unavailableDates'];
+          if (unavailableDatesList is List) {
+            final unavailableDates = unavailableDatesList
+                .map((d) => DateTime.parse(d.toString()))
+                .toList();
 
         final selectedDateOnly = DateTime(
           _selectedDate!.year,
@@ -179,24 +196,35 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
           _selectedDate!.day,
         );
 
-        for (final unavailableDate in unavailableDates) {
-          final unavailableDateOnly = DateTime(
-            unavailableDate.year,
-            unavailableDate.month,
-            unavailableDate.day,
-          );
-          if (selectedDateOnly == unavailableDateOnly) {
-            return 'Not Available';
+            for (final unavailableDate in unavailableDates) {
+              final unavailableDateOnly = DateTime(
+                unavailableDate.year,
+                unavailableDate.month,
+                unavailableDate.day,
+              );
+              if (selectedDateOnly == unavailableDateOnly) {
+                return 'Not Available';
+              }
+            }
           }
+        } catch (e) {
+          print('Warning: Failed to parse unavailableDates in tooltip: $e');
         }
       }
 
       // Check if day is not a working day
       if (availability != null && availability['workingDays'] != null) {
-        final workingDays = Map<String, bool>.from(availability['workingDays']);
-        final dayName = DateFormat('EEEE').format(_selectedDate!);
-        if (workingDays[dayName] != true) {
-          return 'Not Available';
+        try {
+          final workingDaysRaw = availability['workingDays'];
+          if (workingDaysRaw != null) {
+            final workingDays = Map<String, bool>.from(workingDaysRaw as Map);
+            final dayName = DateFormat('EEEE').format(_selectedDate!);
+            if (workingDays[dayName] != true) {
+              return 'Not Available';
+            }
+          }
+        } catch (e) {
+          print('Warning: Failed to parse workingDays in tooltip: $e');
         }
       }
 
