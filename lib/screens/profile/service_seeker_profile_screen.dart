@@ -285,7 +285,7 @@ class _ServiceSeekerProfileScreenState
                               final bookings = bookingSnapshot.data ?? [];
                               final total = bookings.length;
                               final completed = bookings
-                                  .where((b) => b.status == 'Completed')
+                                  .where((b) => b.status == 'completed')
                                   .length;
 
                               return _buildStatsRow(total, completed);

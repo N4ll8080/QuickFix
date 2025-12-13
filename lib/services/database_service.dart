@@ -91,8 +91,10 @@ class DatabaseService {
   }
 
   // 5. Update Booking Status
+  // Normalizes status to lowercase for consistency
   Future<void> updateBookingStatus(String bookingId, String newStatus) async {
-    await _db.ref('bookings/$bookingId').update({'status': newStatus});
+    final normalizedStatus = newStatus.toLowerCase().trim();
+    await _db.ref('bookings/$bookingId').update({'status': normalizedStatus});
   }
 
   // 5a. Cancel Booking (release slot)

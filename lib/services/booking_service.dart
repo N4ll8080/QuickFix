@@ -9,6 +9,31 @@ class BookingService {
   final FirebaseDatabase _db;
   static const int _lockTtlMs = 300000; // 5 minutes
 
+  // Valid booking status values (all lowercase)
+  static const Set<String> _validStatuses = {
+    'pending',
+    'requested',
+    'accepted',
+    'confirmed',
+    'declined',
+    'cancelled',
+    'in progress',
+    'completed',
+    'rescheduled',
+  };
+
+  /// Normalizes status to lowercase and validates it.
+  /// Throws an exception if status is invalid.
+  String _normalizeStatus(String status) {
+    final normalized = status.toLowerCase().trim();
+    if (!_validStatuses.contains(normalized)) {
+      throw ArgumentError(
+        'Invalid booking status: "$status". Valid statuses: $_validStatuses',
+      );
+    }
+    return normalized;
+  }
+
   Future<int> fetchPriceCents(String providerId) async {
     final snap = await _db.ref('users/$providerId/rate').get();
     final rate = snap.value;
@@ -57,6 +82,8 @@ class BookingService {
         await _placeLock(availRef, lockId, booking.seekerId);
 
         // 3. Prepare Booking Data
+        // Use the status from the booking object, normalized to lowercase
+        final normalizedStatus = _normalizeStatus(booking.status);
         final bookingData = <String, Object?>{
           'bookingId': bookingRef.key,
           'providerId': booking.providerId,
@@ -71,7 +98,7 @@ class BookingService {
           'slotDate': slotDateKey,
           'slotTime': slotTimeKey,
           'slotUtc': slotUtc.toIso8601String(),
-          'status': 'Pending',
+          'status': normalizedStatus,
           'address': booking.address.toString(),
           'notes': booking.problemDescription.toString(),
           'problemDescription': booking.problemDescription.toString(),
@@ -139,7 +166,7 @@ class BookingService {
         final slotRef = _db.ref('availability/$providerId/$slotDate/$slotTime');
         await slotRef.set({'status': 'open'});
       }
-      await _db.ref('bookings/$bookingId').update({'status': 'Cancelled'});
+      await _db.ref('bookings/$bookingId').update({'status': 'cancelled'});
     });
   }
 
@@ -232,7 +259,7 @@ class BookingService {
           bookingTarget['slotDate'] = newDateKey;
           bookingTarget['slotTime'] = newTimeKey;
           bookingTarget['slotUtc'] = newSlotUtc.toIso8601String();
-          bookingTarget['status'] = 'Pending';
+          bookingTarget['status'] = 'pending';
 
           return Transaction.success(root);
         });

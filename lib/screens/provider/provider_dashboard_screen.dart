@@ -96,17 +96,17 @@ class _ProviderDashboardScreenState extends State<ProviderDashboardScreen> {
                   builder: (context, snapshot) {
                     final bookings = snapshot.data ?? [];
 
-                    // Calculate Stats
+                    // Calculate Stats (statuses are normalized to lowercase in Booking.fromMap)
                     final pending = bookings
-                        .where((b) => b.status == 'Pending')
+                        .where((b) => b.status == 'pending')
                         .length;
                     final accepted = bookings
-                        .where((b) => b.status == 'Accepted')
+                        .where((b) => b.status == 'accepted' || b.status == 'confirmed')
                         .length;
 
-                    // Calculate Earnings (Sum of price for 'Completed' jobs)
+                    // Calculate Earnings (Sum of price for 'completed' jobs)
                     final earnings = bookings
-                        .where((b) => b.status == 'Completed')
+                        .where((b) => b.status == 'completed')
                         .fold(0.0, (sum, b) => sum + b.price);
 
                     return GridView.count(

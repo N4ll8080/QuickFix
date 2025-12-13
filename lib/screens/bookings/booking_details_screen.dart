@@ -196,8 +196,8 @@ class _BookingDetailsScreenState extends State<BookingDetailsScreen> {
                       ),
                     ],
                   ),
-                  if (widget.booking.status == 'Pending' ||
-                      widget.booking.status == 'Requested')
+                  if (widget.booking.status == 'pending' ||
+                      widget.booking.status == 'requested')
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
