@@ -55,10 +55,29 @@ class UserModel {
           : 0.0,
       reviewCount: map['reviewCount'] ?? 0,
       isAvailable: map['isAvailable'] ?? true,
-      availability: map['availability'] != null
-          ? Map<String, dynamic>.from(map['availability'])
-          : null,
+      availability: _parseAvailability(map['availability']),
     );
+  }
+
+  static Map<String, dynamic>? _parseAvailability(dynamic raw) {
+    if (raw == null) return null;
+    
+    if (raw is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(raw);
+    }
+    
+    if (raw is Map) {
+      try {
+        return Map<String, dynamic>.from(raw);
+      } catch (e) {
+        print('Warning: Failed to parse availability map: $e');
+        return null;
+      }
+    }
+    
+    // If it's a String or other type, log and return null
+    print('Warning: Availability field is ${raw.runtimeType}, expected Map. Ignoring.');
+    return null;
   }
 
   Map<String, dynamic> toMap() {

@@ -98,6 +98,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final rate = _isServiceSeeker ? null : _rateController.text;
     final about = _isServiceSeeker ? null : _aboutController.text;
 
+    // Default availability for providers
+    final Map<String, dynamic>? defaultAvailability = _isServiceSeeker
+        ? null
+        : {
+            'workingDays': {
+              'Monday': true,
+              'Tuesday': true,
+              'Wednesday': true,
+              'Thursday': true,
+              'Friday': true,
+              'Saturday': false,
+              'Sunday': false,
+            },
+            'startTime': '09:00',
+            'endTime': '17:00',
+            'unavailableDates': [],
+          };
+
     // Call Auth Service
     final result = await _authService.register(
       name: name,
@@ -108,6 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       category: category,
       rate: rate,
       about: about,
+      availability: defaultAvailability,
     );
 
     setState(() => _isLoading = false);

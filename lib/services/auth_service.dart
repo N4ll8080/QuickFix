@@ -222,6 +222,7 @@ class AuthService {
     String? category,
     String? rate,
     String? about,
+    Map<String, dynamic>? availability,
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -239,6 +240,7 @@ class AuthService {
         category: category,
         rate: rate != null ? double.tryParse(rate) : null,
         about: about,
+        availability: availability,
       );
 
       await _db.ref('users/$uid').set(newUser.toMap());
