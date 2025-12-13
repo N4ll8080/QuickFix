@@ -213,13 +213,12 @@ class BookingService {
             Map<String, dynamic>? acc = root;
             for (final seg in parts) {
               final next = acc?[seg];
-              if (next is Map<String, dynamic>) {
-                acc = next;
-              } else if (next is Map) {
-                acc = Map<String, dynamic>.from(next);
-              } else {
-                return null;
+              if (next == null) {
+                return null; // Path doesn't exist
               }
+              // Normalize using _asMap to handle legacy string values (e.g. "open")
+              final normalized = _asMap(next);
+              acc = normalized;
             }
             return acc;
           }
@@ -292,15 +291,8 @@ class BookingService {
       return;
     }
 
-    final raw = snapshot.value;
-
-    // Handle legacy/string values (e.g. "open") by normalizing to map shape
-    if (raw is! Map) {
-      await slotRef.set({'status': 'open'});
-      return;
-    }
-
-    final data = Map<String, dynamic>.from(raw);
+    // Normalize data to handle legacy string values (e.g. "open")
+    final data = _asMap(snapshot.value);
 
     final status = data['status'] as String?;
     if (status != 'pending_lock') return;
@@ -342,7 +334,7 @@ class BookingService {
           lockedAt > 0 &&
           nowMs - lockedAt > _lockTtlMs;
 
-      // Treat null status (from "open" string) as free
+      // Treat null status or "open" status as free (normalized by _asMap)
       final isFree =
           status == null ||
           status == 'open' ||
@@ -417,23 +409,42 @@ class BookingService {
 
   Future<void> _releaseLock(DatabaseReference slotRef, String lockId) async {
     await slotRef.runTransaction((currentData) {
-      // CHANGE: Use _asMap
+      // Normalize the data to handle legacy string values
       final data = _asMap(currentData);
 
       final lockOwner = data['lockOwner'] as String?;
       if (lockOwner != lockId) {
-        // Return original data (safely) if we don't own it
-        return Transaction.success(currentData);
+        // Return normalized data if we don't own it (preserve existing state)
+        return Transaction.success(data);
       }
+      // Release the lock by setting status to open
       return Transaction.success({'status': 'open'});
     });
   }
 
   // Helper to safely convert Strings or Maps into a Map<String, dynamic>
+  // Normalizes legacy string values (e.g., "open") into structured map format
   Map<String, dynamic> _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
-    if (value is Map) return Map<String, dynamic>.from(value);
-    // If it's a String (like "open") or null, return empty map so checks default to null/safe
-    return <String, dynamic>{};
+    // Handle null - treat as available slot
+    if (value == null) {
+      return <String, dynamic>{'status': 'open'};
+    }
+    
+    // Handle Map types - normalize to Map<String, dynamic>
+    if (value is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(value);
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    
+    // Handle String values (legacy format like "open") - normalize to map
+    if (value is String) {
+      return <String, dynamic>{'status': value};
+    }
+    
+    // Handle other primitives (Number, Boolean) - treat as available
+    // This handles edge cases where slots might have been set to unexpected types
+    return <String, dynamic>{'status': 'open'};
   }
 }
