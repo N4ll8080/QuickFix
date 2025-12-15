@@ -36,14 +36,23 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
   Future<void> _loadExistingBookings() async {
     setState(() => _isLoadingBookings = true);
     try {
+      print('DEBUG: Fetching existing bookings...'); // <--- Added Log
       final bookings = await _dbService
           .getProviderBookings(widget.provider.id)
           .first;
+
+      print(
+        'DEBUG: Fetched ${bookings.length} existing bookings.',
+      ); // <--- Added Log
+
       setState(() {
         _existingBookings = bookings;
         _isLoadingBookings = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
+      // <--- Capture stack trace
+      print('DEBUG ERROR in _loadExistingBookings: $e'); // <--- PRINT THE ERROR
+      print('DEBUG STACK: $stack');
       setState(() => _isLoadingBookings = false);
     }
   }
@@ -101,7 +110,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
   bool _isSlotAvailable(String timeSlot) {
     if (_selectedDate == null) return true;
 
-    // Check if date is unavailable
+    // 1. Check Unavailable Dates
     final availability = widget.provider.availability;
     if (availability != null && availability['unavailableDates'] != null) {
       try {
@@ -110,12 +119,11 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
           final unavailableDates = unavailableDatesList
               .map((d) => DateTime.parse(d.toString()))
               .toList();
-
-      final selectedDateOnly = DateTime(
-        _selectedDate!.year,
-        _selectedDate!.month,
-        _selectedDate!.day,
-      );
+          final selectedDateOnly = DateTime(
+            _selectedDate!.year,
+            _selectedDate!.month,
+            _selectedDate!.day,
+          );
 
           for (final unavailableDate in unavailableDates) {
             final unavailableDateOnly = DateTime(
@@ -123,35 +131,30 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
               unavailableDate.month,
               unavailableDate.day,
             );
-            if (selectedDateOnly == unavailableDateOnly) {
-              return false;
-            }
+            if (selectedDateOnly == unavailableDateOnly) return false;
           }
         }
       } catch (e) {
-        print('Warning: Failed to parse unavailableDates: $e');
+        // Ignore parsing errors
       }
     }
 
-    // Check if day is a working day
+    // 2. Check Working Days (The Fix is here)
     if (availability != null && availability['workingDays'] != null) {
       try {
         final workingDaysRaw = availability['workingDays'];
-        if (workingDaysRaw != null) {
-          final workingDays = _parseWorkingDays(workingDaysRaw);
-          if (workingDays != null) {
-            final dayName = DateFormat('EEEE').format(_selectedDate!);
-            if (workingDays[dayName] != true) {
-              return false;
-            }
-          }
+        // FIX: Strict type check
+        if (workingDaysRaw is Map) {
+          final workingDays = Map<String, bool>.from(workingDaysRaw);
+          final dayName = DateFormat('EEEE').format(_selectedDate!);
+          if (workingDays[dayName] != true) return false;
         }
       } catch (e) {
-        print('Warning: Failed to parse workingDays: $e');
+        // Ignore parsing errors
       }
     }
 
-    // Check if slot is already booked
+    // 3. Check Existing Bookings
     final selectedDateOnly = DateTime(
       _selectedDate!.year,
       _selectedDate!.month,
@@ -181,10 +184,9 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
     if (_selectedDate == null) return null;
 
     if (!_isSlotAvailable(timeSlot)) {
-      // Check why it's unavailable
       final availability = widget.provider.availability;
 
-      // Check if date is unavailable
+      // 1. Check Unavailable Dates
       if (availability != null && availability['unavailableDates'] != null) {
         try {
           final unavailableDatesList = availability['unavailableDates'];
@@ -192,12 +194,11 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
             final unavailableDates = unavailableDatesList
                 .map((d) => DateTime.parse(d.toString()))
                 .toList();
-
-        final selectedDateOnly = DateTime(
-          _selectedDate!.year,
-          _selectedDate!.month,
-          _selectedDate!.day,
-        );
+            final selectedDateOnly = DateTime(
+              _selectedDate!.year,
+              _selectedDate!.month,
+              _selectedDate!.day,
+            );
 
             for (final unavailableDate in unavailableDates) {
               final unavailableDateOnly = DateTime(
@@ -205,35 +206,34 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
                 unavailableDate.month,
                 unavailableDate.day,
               );
-              if (selectedDateOnly == unavailableDateOnly) {
+              if (selectedDateOnly == unavailableDateOnly)
                 return 'Not Available';
-              }
             }
           }
         } catch (e) {
-          print('Warning: Failed to parse unavailableDates in tooltip: $e');
+          // Ignore parsing errors
         }
       }
 
-      // Check if day is not a working day
+      // 2. Check Working Days (THIS WAS THE MISSING FIX)
       if (availability != null && availability['workingDays'] != null) {
         try {
           final workingDaysRaw = availability['workingDays'];
-          if (workingDaysRaw != null) {
-            final workingDays = _parseWorkingDays(workingDaysRaw);
-            if (workingDays != null) {
-              final dayName = DateFormat('EEEE').format(_selectedDate!);
-              if (workingDays[dayName] != true) {
-                return 'Not Available';
-              }
+
+          // CRITICAL FIX: Check if it is a Map before using it
+          if (workingDaysRaw is Map) {
+            final workingDays = Map<String, bool>.from(workingDaysRaw);
+            final dayName = DateFormat('EEEE').format(_selectedDate!);
+            if (workingDays[dayName] != true) {
+              return 'Not Available';
             }
           }
         } catch (e) {
-          print('Warning: Failed to parse workingDays in tooltip: $e');
+          // Ignore parsing errors
         }
       }
 
-      // Check if already booked
+      // 3. Check Existing Bookings
       final selectedDateOnly = DateTime(
         _selectedDate!.year,
         _selectedDate!.month,
@@ -241,10 +241,11 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
       );
 
       for (final booking in _existingBookings) {
+        final bookingDate = booking.date.toLocal();
         final bookingDateOnly = DateTime(
-          booking.date.year,
-          booking.date.month,
-          booking.date.day,
+          bookingDate.year,
+          bookingDate.month,
+          bookingDate.day,
         );
 
         if (selectedDateOnly == bookingDateOnly &&
@@ -264,7 +265,7 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
   /// This provides defensive parsing at the UI layer as a fallback.
   Map<String, bool>? _parseWorkingDays(dynamic raw) {
     if (raw == null) return null;
-    
+
     // If it's already a Map, try to convert to Map<String, bool>
     if (raw is Map) {
       try {
@@ -288,15 +289,19 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
         return null;
       }
     }
-    
+
     // If it's a JSON string, try to decode it
     if (raw is String) {
       try {
         final decoded = jsonDecode(raw);
         if (decoded is Map) {
-          return _parseWorkingDays(decoded); // Recursively parse the decoded map
+          return _parseWorkingDays(
+            decoded,
+          ); // Recursively parse the decoded map
         } else {
-          print('Warning: workingDays JSON string decoded to non-Map type: ${decoded.runtimeType}');
+          print(
+            'Warning: workingDays JSON string decoded to non-Map type: ${decoded.runtimeType}',
+          );
           return null;
         }
       } catch (e) {
@@ -304,8 +309,10 @@ class _CreateBookingScreenState extends State<CreateBookingScreen> {
         return null;
       }
     }
-    
-    print('Warning: workingDays is ${raw.runtimeType}, expected Map or JSON string. Ignoring.');
+
+    print(
+      'Warning: workingDays is ${raw.runtimeType}, expected Map or JSON string. Ignoring.',
+    );
     return null;
   }
 

@@ -22,7 +22,6 @@ class DatabaseService {
   Stream<List<UserModel>> getProvidersByCategory(String category) {
     return _db
         .ref('users')
-        // Use orderByChild and equalTo to filter on the server side (REQUIRED INDEX!)
         .orderByChild('category')
         .equalTo(category)
         .onValue
@@ -32,10 +31,12 @@ class DatabaseService {
             final users = _asMap(event.snapshot.value);
 
             users.forEach((key, value) {
-              final user = UserModel.fromMap(value, key);
-              // Only check userType here, the category is already filtered by the query
-              if (user.userType == 'provider') {
-                providers.add(user);
+              // FIX: Ensure 'value' is actually a Map before converting
+              if (value is Map) {
+                final user = UserModel.fromMap(value, key);
+                if (user.userType == 'provider') {
+                  providers.add(user);
+                }
               }
             });
           }
@@ -61,10 +62,12 @@ class DatabaseService {
           if (event.snapshot.value != null) {
             final data = _asMap(event.snapshot.value);
             data.forEach((key, value) {
-              bookings.add(Booking.fromMap(value, key));
+              // FIX: Check if value is Map. If it's a String, ignore it.
+              if (value is Map) {
+                bookings.add(Booking.fromMap(value, key));
+              }
             });
           }
-          // Sort by date descending
           bookings.sort((a, b) => b.date.compareTo(a.date));
           return bookings;
         });
@@ -82,7 +85,10 @@ class DatabaseService {
           if (event.snapshot.value != null) {
             final data = _asMap(event.snapshot.value);
             data.forEach((key, value) {
-              bookings.add(Booking.fromMap(value, key));
+              // FIX: Check if value is Map
+              if (value is Map) {
+                bookings.add(Booking.fromMap(value, key));
+              }
             });
           }
           bookings.sort((a, b) => b.date.compareTo(a.date));
@@ -91,7 +97,6 @@ class DatabaseService {
   }
 
   // 5. Update Booking Status
-  // Normalizes status to lowercase for consistency
   Future<void> updateBookingStatus(String bookingId, String newStatus) async {
     final normalizedStatus = newStatus.toLowerCase().trim();
     await _db.ref('bookings/$bookingId').update({'status': normalizedStatus});
@@ -125,6 +130,7 @@ class DatabaseService {
   Future<Booking?> getBooking(String bookingId) async {
     final snapshot = await _db.ref('bookings/$bookingId').get();
     if (snapshot.exists && snapshot.value != null) {
+      // Safe: _asMap guarantees a Map return
       return Booking.fromMap(_asMap(snapshot.value), bookingId);
     }
     return null;
@@ -139,6 +145,7 @@ class DatabaseService {
   Stream<UserModel?> getUserStream(String uid) {
     return _db.ref('users/$uid').onValue.map((event) {
       if (event.snapshot.value != null) {
+        // Safe: _asMap guarantees a Map return
         return UserModel.fromMap(_asMap(event.snapshot.value), uid);
       }
       return null;

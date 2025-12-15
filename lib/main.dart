@@ -131,7 +131,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
               final error = profileSnapshot.error;
               final isTimeoutError =
                   error.toString().contains('TimeoutException') ||
-                      error.toString().contains('timeout');
+                  error.toString().contains('timeout');
 
               return Scaffold(
                 body: Center(
